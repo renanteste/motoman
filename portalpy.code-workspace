@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"totvsLanguageServer.welcomePage": false,
+		"totvsLanguageServer.editor.linter.includes": "C:\\Users\\mmcol\\OneDrive\\projetos_poupex\\protheus\\INCLUDE"
+	}
+}
