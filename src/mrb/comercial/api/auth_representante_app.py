@@ -145,7 +145,8 @@ class AutenticaRepresentanteApp:
             body=body,
         ):
             raise HTTPException(
-                status_code=400, detail="Falha no envio do e-mail com o token!"
+                status_code=400,
+                detail=f"Falha no envio do e-mail com o token: {envio_email.mensagem}",
             )
 
         return AuthRepresentante(cnpj=self.cnpj, email=email)
