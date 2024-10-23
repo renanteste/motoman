@@ -8,7 +8,7 @@ class EmailConfiguration:
     # SMTP_PORT = 587
     # SMTP_AUTENTICACAO = True
 
-    ADDRESS = "report@motoman.com.br"
+    ADDRESS = "token@motoman.com.br"
     PASSWORD = "naofazdiferenca"
     SMTP_SERVER = "172.22.8.35"
     SMTP_PORT = 25
@@ -38,3 +38,4 @@ class Environment:
     ROOT = os.path.dirname(__file__)
     DIR_TOKENS = os.path.join(ROOT, "tokens")
     DIR_TEMPLATE = os.path.join(ROOT, "templates")
+    PORTAL_PY_K = "B7lP8ZqJcN3X9rT1K2sV4W5eY6fG0qF3"

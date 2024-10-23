@@ -116,7 +116,9 @@ class AutenticaRepresentanteApp:
         if len(self.cnpj) < 14:
             raise HTTPException(status_code=400, detail="CNPJ Inválido")
 
-        representante_existe, email, token = self.existe_representante()
+        representante_existe, email, token = (
+            self.existe_representante()
+        )  # Incluir o nome do representante
 
         if not representante_existe:
             raise HTTPException(status_code=400, detail=self.retorna_exception())
@@ -154,6 +156,8 @@ class AutenticaRepresentanteApp:
 
 @auth_router.put("/authrepresentante/{cnpj}", response_model=AuthRepresentante)
 def auth_representante(cnpj: str, db: Session = Depends(get_db)) -> AuthRepresentante:
+    # Receber cnpj + token para ativar o aplicativo
+    # Em cada transação, validar o token + cnpj
     """
     Endpoint para autenticação do aplicativo do representante comercial.
     <p>Recebe na URL o número do CNPJ previamente cadastrado (Cadastro de Vendedores do ERP) e gera um token de 8 dígitos
