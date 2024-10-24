@@ -1,7 +1,7 @@
-import base64
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from src.mrb.comercial.api.auth_representante_app import AutenticaRepresentanteApp
+from src.mrb.common.security.auth_service import valida_token
+from src.mrb.comercial.api.auth_representante_app import autentica_representante_app
 from src.mrb.comercial.models.model_call_reports import CallReports
 from src.mrb.common.database.db_engine import get_db
 from src.mrb.comercial.schemas.schema_call_report import CallReport
@@ -32,10 +32,10 @@ class CallReportApp:
         return registros_gravados
 
 
-@call_report_router.post("/call_report_app/")
+@call_report_router.post("/call_report_app")
 def novo_call_report(
     call_reports: Union[List[CallReport], CallReport],
-    authorization: str = Header(...),
+    payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
 ) -> List[CallReport]:
     """
@@ -43,19 +43,17 @@ def novo_call_report(
     <p>Espera receber no header o token de autenticação em base 64 que irá identificar o representante:
     <p>O body pode conter um registro ou uma lista.
     """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401, detail="Autorização inválida no cabeçalho!"
-        )
+
+    # Valida se tem acesso
+    auth_service = autentica_representante_app(
+        db, payload.get("sub"), "call_report_app"
+    )
 
     call_report_app = CallReportApp(db)
-    autentica_representante = AutenticaRepresentanteApp(db, None)
-    if not autentica_representante.valida_token(
-        base64.b64decode(authorization.replace("Bearer ", "")).decode()
-    ):
-        raise HTTPException(status_code=401, detail="Token inválido!")
 
-    call_report_app.cnpj_representante = autentica_representante.cnpj
+    call_report_app.cnpj_representante = (
+        auth_service.dados_usuario.dados_representante.cnpj
+    )
 
     if not isinstance(call_reports, list):
         call_reports = [call_reports]
