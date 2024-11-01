@@ -28,5 +28,4 @@ class Prospect(BaseModel):
     cnpj_representante: Optional[str] = None
 
     class Config:
-        orm_mode = True
         from_attributes = True

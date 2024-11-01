@@ -1,18 +1,22 @@
+import secrets
+import string
 import jwt
 import pytz
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy import Select, and_
+from sqlalchemy import Select, and_, update
 from sqlalchemy.orm import Session, aliased
+from sqlalchemy.exc import SQLAlchemyError
 from jwt import ExpiredSignatureError, InvalidTokenError
 
+from src.mrb.common.email.email_service import EmailService
 from src.mrb.common.database.db_engine import get_db
 from src.mrb.common.models.model_usuarios_portal import usuarios_szk
 from src.mrb.common.models.model_acessos_portal import usuarios_szl
 from src.mrb.comercial.models.model_vendedores import vendedores_sa3
 from src.mrb.common.config import Environment
-from src.mrb.common.security.criptografia import decript
+from src.mrb.common.security.criptografia import EncriptRequisicao, decript, encript
 from src.mrb.common.schemas.schema_auth_service import (
     Acessos,
     AuthResponse,
@@ -23,6 +27,8 @@ from src.mrb.common.schemas.schema_auth_service import (
 
 auth_router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
+TAMANHO_SENHA = usuarios_szk.columns["ZK_SENHA"].type.length
+TAMANHO_IV = usuarios_szk.columns["ZK_SAL"].type.length
 
 
 class AuthService:
@@ -58,7 +64,7 @@ class AuthService:
         try:
             senha_descriptografada = decript(
                 {"senha": self.senha_usuario, "iv": self.sal_senha_usuario}
-            )["senha"]
+            ).senha
             return senha_descriptografada == senha_digitada
 
         except Exception as e:
@@ -100,6 +106,7 @@ class AuthService:
                 szk.c.ZK_MSBLQD,
                 szk.c.ZK_SENHA,
                 szk.c.ZK_SAL,
+                szk.c.ZK_NVSENHA,
                 sa3.c.A3_COD,
                 sa3.c.A3_NOME,
                 sa3.c.A3_CGC,
@@ -124,7 +131,9 @@ class AuthService:
         if dados_usuario:
             self.dados_usuario.id_usuario = dados_usuario.ZK_ID
             self.dados_usuario.nome_usuario = dados_usuario.ZK_NOME.strip()
+            self.dados_usuario.email_usuario = conta_usuario
             self.dados_usuario.usuario_bloqueado = dados_usuario.ZK_MSBLQL == "1"
+            self.dados_usuario.solicitada_nova_senha = dados_usuario.ZK_NVSENHA == "1"
             if not dados_usuario.ZK_MSBLQD.strip() == "":
                 self.dados_usuario.validade_usuario = datetime.strptime(
                     dados_usuario.ZK_MSBLQD, "%Y%m%d"
@@ -178,6 +187,12 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Cadastro de usuário bloqueado!",
             )
+        elif self.dados_usuario.solicitada_nova_senha:
+            self.gera_nova_senha()
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Enviada nova senha para o e-mail do usuário.",
+            )
         elif not self.senha_valida(senha_informada):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -186,6 +201,79 @@ class AuthService:
         else:
             self.usuario_autenticado = True
             self.autenticacao = self.gera_token()
+
+    def gera_nova_senha(self):
+        szk = usuarios_szk
+
+        # Gera nova senha com dígitos e letras maiúsculas
+        nova_senha = "".join(
+            secrets.choice(string.digits + string.ascii_uppercase) for _ in range(8)
+        )
+        # Criptografa a nova senha
+        senha_criptografada = encript(requisicao=EncriptRequisicao(senha=nova_senha))
+        # Grava a senha criptografada e o iv no banco de dados
+        try:
+            query = (
+                update(szk)
+                .where(
+                    szk.c.D_E_L_E_T_ == " ",
+                    szk.c.ZK_FILIAL == " ",
+                    szk.c.ZK_ID == self.dados_usuario.id_usuario,
+                )
+                .values(
+                    ZK_SENHA=senha_criptografada.senha.ljust(TAMANHO_SENHA),
+                    ZK_SAL=senha_criptografada.iv.ljust(TAMANHO_IV),
+                    ZK_NVSENHA="2",
+                )
+            )
+            self.db.execute(query)
+            self.db.commit()
+
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Falha na gravação da senha: {e}",
+            )
+
+        # Envia e-mail ao usuário com a senha descriptografada gerada
+        body = f"""
+            <html>
+                <body>
+                    <p>Sua nova senha de acesso é <b>{nova_senha}</b>.</p>
+                </body>
+            </html>
+            """
+        envio_email = EmailService()
+        if not envio_email.send_email(
+            self.dados_usuario.email_usuario, "Acesso Portal MRB", body
+        ):
+            # Se o e-mail não foi enviado, retorna o flag de envio de e-mail na conta do usuário
+            try:
+                query = (
+                    update(szk)
+                    .where(
+                        szk.c.D_E_L_E_T_ == " ",
+                        szk.c.ZK_FILIAL == " ",
+                        szk.c.ZK_ID == self.dados_usuario.id_usuario,
+                    )
+                    .values(
+                        ZK_SENHA=self.senha_usuario.ljust(TAMANHO_SENHA),
+                        ZK_SAL=self.sal_senha_usuario.ljust(TAMANHO_IV),
+                        ZK_NVSENHA="1",
+                    )
+                )
+                self.db.execute(query)
+                self.db.commit()
+
+            except SQLAlchemyError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Falha atualizando flag de envio de e-mail na conta do usuário: {e}",
+                )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=envio_email.mensagem,
+            )
 
 
 @auth_router.post("/auth")

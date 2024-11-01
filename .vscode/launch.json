@@ -2,16 +2,17 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"type": "totvs_language_debug",
+			"name": "Python: FastAPI",
+			"type": "debugpy",
 			"request": "launch",
-			"name": "TOTVS Language Debug",
-			"program": "${command:AskForProgramName}",
-			"cwb": "${workspaceFolder}",
-			"smartclientBin": "../totvs/bin/smartclient/smartclient.exe",
-			"isMultiSession": true,
-			"enableTableSync": true,
-			"extendFeatures": {
-				"charDetails": false
+			"module": "uvicorn",
+			"args": [
+				"src.mrb.comercial.api.main:app", // Caminho completo para o módulo principal do FastAPI
+				"--reload"
+			],
+			"jinja": true,
+			"env": {
+				"PYTHONPATH": "C:/Users/mmcol/OneDrive/Projetos/Motoman/portalpy" // Define o diretório raiz do projeto para Python
 			}
 		}
 	]

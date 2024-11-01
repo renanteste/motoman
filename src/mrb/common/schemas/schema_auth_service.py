@@ -20,8 +20,10 @@ class Acessos(BaseModel):
 class DadosUsuario(BaseModel):
     id_usuario: Optional[str] = None
     nome_usuario: Optional[str] = None
+    email_usuario: Optional[str] = None
     usuario_bloqueado: Optional[bool] = None
     validade_usuario: Optional[datetime] = None
+    solicitada_nova_senha: Optional[bool] = None
     dados_representante: Optional[DadosRepresentante] = None
     dados_vendedor: Optional[DadosVendedor] = None
     acessos: Optional[Acessos] = None

@@ -9,8 +9,8 @@ from src.mrb.common.security.criptografia import (
     criptografia_router,
     descriptografia_router,
 )
-from prospect_app import prospect_router
-from call_report_app import call_report_router
+from src.mrb.comercial.api.prospect_app import prospect_router
+from src.mrb.comercial.api.call_report_app import call_report_router
 
 app = FastAPI()
 app.include_router(prospect_router)
