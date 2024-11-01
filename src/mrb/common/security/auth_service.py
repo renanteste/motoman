@@ -16,7 +16,12 @@ from src.mrb.common.models.model_usuarios_portal import usuarios_szk
 from src.mrb.common.models.model_acessos_portal import usuarios_szl
 from src.mrb.comercial.models.model_vendedores import vendedores_sa3
 from src.mrb.common.config import Environment
-from src.mrb.common.security.criptografia import EncriptRequisicao, decript, encript
+from src.mrb.common.security.criptografia import (
+    DecriptRequisicao,
+    EncriptRequisicao,
+    decript,
+    encript,
+)
 from src.mrb.common.schemas.schema_auth_service import (
     Acessos,
     AuthResponse,
@@ -63,7 +68,7 @@ class AuthService:
     def senha_valida(self, senha_digitada: str) -> bool:
         try:
             senha_descriptografada = decript(
-                {"senha": self.senha_usuario, "iv": self.sal_senha_usuario}
+                DecriptRequisicao(senha=self.senha_usuario, iv=self.sal_senha_usuario)
             ).senha
             return senha_descriptografada == senha_digitada
 

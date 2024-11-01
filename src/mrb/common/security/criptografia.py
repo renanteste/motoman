@@ -38,10 +38,10 @@ def decript(requisicao: DecriptRequisicao) -> DecriptResposta:
 
         if len(chave) not in [16, 24, 32]:
             raise ValueError("Chave AES deve ter 16, 24 ou 32 bytes.")
-        cipher = AES.new(chave, AES.MODE_CBC, bytes.fromhex(requisicao["iv"]))
+        cipher = AES.new(chave, AES.MODE_CBC, bytes.fromhex(requisicao.iv))
 
         senha_descriptografada = unpad(
-            cipher.decrypt(bytes.fromhex(requisicao["senha"])), AES.block_size
+            cipher.decrypt(bytes.fromhex(requisicao.senha)), AES.block_size
         ).decode()
 
         return DecriptResposta(senha=senha_descriptografada)
