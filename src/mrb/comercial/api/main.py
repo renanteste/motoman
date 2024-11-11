@@ -3,6 +3,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
+from src.mrb.common.lib import configura_log
 from src.mrb.common.config import ApiConfiguration
 from src.mrb.common.security.auth_service import auth_router
 from src.mrb.common.security.criptografia import (
@@ -11,6 +12,8 @@ from src.mrb.common.security.criptografia import (
 )
 from src.mrb.comercial.api.prospect_app import prospect_router
 from src.mrb.comercial.api.call_report_app import call_report_router
+
+configura_log("api_comercial")
 
 app = FastAPI()
 app.include_router(prospect_router)
@@ -41,7 +44,6 @@ async def log_requests(request: Request, call_next):
 
 # Execução do serviço REST Comercial
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
     # Inicia o serviço REST Comercial
     uvicorn.run(
         app,

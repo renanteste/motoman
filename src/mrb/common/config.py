@@ -39,3 +39,4 @@ class Environment:
     DIR_TOKENS = os.path.join(ROOT, "tokens")
     DIR_TEMPLATE = os.path.join(ROOT, "templates")
     PORTAL_PY_K = "B7lP8ZqJcN3X9rT1K2sV4W5eY6fG0qF3"
+    DIR_LOG_APLICACAO = os.path.join(ROOT, "log")
