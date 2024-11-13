@@ -14,6 +14,7 @@ from src.mrb.common.email.email_service import EmailService
 from src.mrb.common.database.db_engine import get_db
 from src.mrb.common.models.model_usuarios_portal import usuarios_szk
 from src.mrb.common.models.model_acessos_portal import usuarios_szl
+from src.mrb.common.models.model_recursos_protheus import recursos_ae8
 from src.mrb.comercial.models.model_vendedores import vendedores_sa3
 from src.mrb.common.config import Environment
 from src.mrb.common.security.criptografia import (
@@ -26,6 +27,7 @@ from src.mrb.common.schemas.schema_auth_service import (
     Acessos,
     AuthResponse,
     DadosAutenticacao,
+    DadosCadastroRecursos,
     DadosUsuario,
     DadosVendedor,
 )
@@ -103,6 +105,7 @@ class AuthService:
         szk = aliased(usuarios_szk, name="szk")
         szl = aliased(usuarios_szl, name="szl")
         sa3 = aliased(vendedores_sa3, name="sa3")
+        ae8 = aliased(recursos_ae8, name="ae8")
         query = (
             Select(
                 szk.c.ZK_ID,
@@ -116,6 +119,20 @@ class AuthService:
                 sa3.c.A3_NOME,
                 sa3.c.A3_CGC,
                 sa3.c.A3_YTPREP,
+                ae8.c.AE8_RECURS,
+                ae8.c.AE8_ATIVO,
+                ae8.c.AE8_EQUIP,
+                ae8.c.AE8_XLIDER,
+                ae8.c.AE8_XCUSTO,
+                ae8.c.AE8_TERCEI,
+                ae8.c.AE8_CODFUN,
+                ae8.c.AE8_USER,
+                ae8.c.AE8_XHREXT,
+                ae8.c.AE8_FUNCAO,
+                ae8.c.AE8_XFORNE,
+                ae8.c.AE8_XFORLO,
+                ae8.c.AE8_XCPF,
+                ae8.c.AE8_DTBLOQ,
             )
             .join(
                 sa3,
@@ -123,6 +140,16 @@ class AuthService:
                     sa3.c.D_E_L_E_T_ == " ",
                     sa3.c.A3_FILIAL == " ",
                     sa3.c.A3_COD == szk.c.ZK_VEND,
+                ),
+                isouter=True,
+            )
+            .join(
+                ae8,
+                and_(
+                    ae8.c.D_E_L_E_T_ == " ",
+                    ae8.c.AE8_FILIAL == "01",
+                    ae8.c.AE8_RECURS == szk.c.ZK_CDRECUR,
+                    ae8.c.AE8_DESCRI >= " ",
                 ),
                 isouter=True,
             )
@@ -157,6 +184,48 @@ class AuthService:
                     self.dados_usuario.dados_representante = dados_vendedor
                 else:
                     self.dados_usuario.dados_vendedor = dados_vendedor
+
+            # Caso possua relacionamento com o cadastro de recursos
+            if dados_usuario.AE8_RECURS:
+                self.dados_usuario.dados_cadastro_recursos = DadosCadastroRecursos()
+                self.dados_usuario.dados_cadastro_recursos.codigo = (
+                    dados_usuario.AE8_RECURS.strip()
+                )
+                self.dados_usuario.dados_cadastro_recursos.ativo = (
+                    dados_usuario.AE8_ATIVO == "1"
+                )
+                self.dados_usuario.dados_cadastro_recursos.codigo_equipe = (
+                    dados_usuario.AE8_EQUIP.strip()
+                )
+                self.dados_usuario.dados_cadastro_recursos.lider = (
+                    dados_usuario.AE8_XLIDER == "1"
+                )
+                self.dados_usuario.dados_cadastro_recursos.centro_custo = (
+                    dados_usuario.AE8_XCUSTO.strip()
+                )
+                self.dados_usuario.dados_cadastro_recursos.custo_terceiro_apontamento = (
+                    dados_usuario.AE8_TERCEI.strip()
+                )
+                self.dados_usuario.dados_cadastro_recursos.matricula = (
+                    dados_usuario.AE8_CODFUN.strip()
+                )
+                self.dados_usuario.dados_cadastro_recursos.codigo_usuario_protheus = (
+                    dados_usuario.AE8_USER.strip()
+                )
+                self.dados_usuario.dados_cadastro_recursos.permite_hora_extra = (
+                    dados_usuario.AE8_XHREXT == "S"
+                )
+                self.dados_usuario.dados_cadastro_recursos.codigo_funcao = (
+                    dados_usuario.AE8_FUNCAO.strip()
+                )
+                self.dados_usuario.dados_cadastro_recursos.codigo_fornecedor = f"{dados_usuario.AE8_XFORNE.strip()}-{dados_usuario.AE8_XFORLO.strip()}"
+                self.dados_usuario.dados_cadastro_recursos.cpf = (
+                    dados_usuario.AE8_XCPF.strip()
+                )
+                if not dados_usuario.AE8_DTBLOQ.strip() == "":
+                    self.dados_usuario.dados_cadastro_recursos.data_bloqueio = (
+                        datetime.strptime(dados_usuario.AE8_DTBLOQ, "%Y%m%d")
+                    )
 
             # Recupera os acessos
             query = Select(szl.c.ZL_ACESSO).where(

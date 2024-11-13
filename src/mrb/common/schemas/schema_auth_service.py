@@ -3,6 +3,22 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+class DadosCadastroRecursos(BaseModel):
+    codigo: Optional[str] = None
+    ativo: Optional[bool] = None
+    codigo_equipe: Optional[str] = None
+    lider: Optional[bool] = None
+    centro_custo: Optional[str] = None
+    custo_terceiro_apontamento: Optional[str] = None
+    matricula: Optional[str] = None
+    codigo_usuario_protheus: Optional[str] = None
+    permite_hora_extra: Optional[bool] = None
+    codigo_funcao: Optional[str] = None
+    codigo_fornecedor: Optional[str] = None
+    cpf: Optional[str] = None
+    data_bloqueio: Optional[datetime] = None
+
+
 class DadosRepresentante(BaseModel):
     codigo: Optional[str] = None
     nome: Optional[str] = None
@@ -26,6 +42,7 @@ class DadosUsuario(BaseModel):
     solicitada_nova_senha: Optional[bool] = None
     dados_representante: Optional[DadosRepresentante] = None
     dados_vendedor: Optional[DadosVendedor] = None
+    dados_cadastro_recursos: Optional[DadosCadastroRecursos] = None
     acessos: Optional[Acessos] = None
 
 

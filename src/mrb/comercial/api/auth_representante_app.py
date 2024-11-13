@@ -2,7 +2,6 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.mrb.common.security.auth_service import AuthService
-from src.mrb.common.database.db_engine import get_db
 from src.mrb.comercial.models.model_vendedores import vendedores_sa3
 
 # from src.mrb.common.email.email_service import EmailService

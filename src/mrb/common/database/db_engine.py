@@ -7,6 +7,10 @@ from urllib.parse import quote_plus
 engine = create_engine(
     f"mssql+pymssql://{SqlConfiguration.USER}:{quote_plus(SqlConfiguration.PASSWORD)}@{SqlConfiguration.SERVER}/{SqlConfiguration.DATABASE}",
     echo=False,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=20,
 )
 
 # Configuração da sessão
