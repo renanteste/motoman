@@ -1,7 +1,8 @@
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -9,6 +10,7 @@ import uvicorn
 from src.mrb.common.lib import configura_log
 from src.mrb.common.config import ApiConfiguration, Environment
 from src.mrb.common.security.auth_service import auth_router
+from src.mrb.rh.api.solicitacao_horas_extras import solicitacao_horas_extras_router
 
 configura_log("api_rh")
 
@@ -22,6 +24,52 @@ app.add_middleware(
 )
 app.mount("/images", StaticFiles(directory=Environment.IMAGES_PATH), name="images")
 app.include_router(auth_router)
+app.include_router(solicitacao_horas_extras_router)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, HTTPException):
+        # Não logar exceções HTTP tratadas
+        return await request_validation_exception_handler(request, exc)
+
+    # Loga informações da requisição
+    logging.error(
+        f"Unhandled exception: {exc}\n"
+        f"Method: {request.method}\n"
+        f"URL: {request.url}\n"
+        f"Headers: {dict(request.headers)}",
+        exc_info=True,
+    )
+
+    # Tenta capturar o corpo da requisição
+    try:
+        body = await request.body()
+        logging.error(f"Body: {body.decode('utf-8', errors='replace')}")
+
+    except Exception as body_error:
+        logging.error(f"Failed to capture request body: {body_error}")
+
+    # Retorna uma resposta amigável ao cliente
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Ocorreu um erro interno no servidor."},
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    logging.warning(
+        f"HTTPException: {exc.detail}\n"
+        f"Status Code: {exc.status_code}\n"
+        f"Method: {request.method}\n"
+        f"URL: {request.url}\n"
+        f"Headers: {dict(request.headers)}"
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -32,15 +80,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    logging.info(f"Request: {request.method} {request.url}")
-    logging.info(f"Headers: {request.headers}")
+    try:
+        logging.info(f"Request: {request.method} {request.url}")
+        logging.info(f"Headers: {request.headers}")
 
-    body = await request.body()
-    logging.info(f"Body: {body.decode('utf-8', errors='replace')}")
+        body = await request.body()
+        logging.info(f"Body: {body.decode('utf-8', errors='replace')}")
 
-    response = await call_next(request)
-    logging.info(f"Response status: {response.status_code}")
-    return response
+        response = await call_next(request)
+        logging.info(f"Response status: {response.status_code}")
+        return response
+
+    except Exception as e:
+        logging.error(f"Exception during request processing: {e}", exc_info=True)
+        raise
 
 
 # Execução do serviço REST RH

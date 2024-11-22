@@ -62,13 +62,16 @@ def menu_principal_view():
                     # Área central com o logotipo
                     ft.Container(
                         content=ft.Image(
-                            src=f"http://{Environment.SERVER_IP}:{ApiConfiguration.rh.PORT}/images/robo.png",  # Coloque o caminho do logotipo aqui
-                            width=400,
-                            height=400,
-                            fit=ft.ImageFit.CONTAIN,
+                            src=f"http://{Environment.SERVER_IP}:{ApiConfiguration.rh.PORT}/images/OG-Robot-Lineup.jpg",  # Coloque o caminho do logotipo aqui
+                            width=1236,
+                            height=673,
+                            fit=ft.ImageFit.FILL,
+                            expand=True,
                         ),
                         alignment=ft.alignment.center,
-                        expand=True,  # Ocupa o espaço restante da linha
+                        expand=True,
+                        padding=0,
+                        margin=0,
                     ),
                 ],
                 expand=True,

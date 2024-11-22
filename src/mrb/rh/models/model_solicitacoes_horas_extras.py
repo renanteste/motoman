@@ -4,7 +4,7 @@ from sqlalchemy import CHAR, DECIMAL, Column, Integer, String, DateTime
 Base = declarative_base()
 
 
-class SolicitacaoHorasExtras(Base):
+class SolicitacoesHorasExtras(Base):
     __tablename__ = "solicitacao_horas_extras"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

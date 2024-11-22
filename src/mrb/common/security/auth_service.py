@@ -93,7 +93,10 @@ class AuthService:
         # Se recuperou a conta, recupera os dados do usuário e verifica se tem acesso ao end point
         if recupera_conta:
             self.recupera_dados_usuario(recupera_conta.ZK_EMAIL.strip())
-            if ponto_acesso.upper() in self.dados_usuario.acessos.lista_acesso:
+            if (
+                self.dados_usuario.acessos
+                and ponto_acesso.upper() in self.dados_usuario.acessos.lista_acesso
+            ):
                 tem_acesso = True
             else:
                 # Zera os dados do usuário por segurança
