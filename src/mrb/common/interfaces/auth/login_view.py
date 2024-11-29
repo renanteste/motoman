@@ -2,43 +2,53 @@
 import flet as ft
 import requests
 
+# from src.mrb.common.interfaces.navigation_bar import NavigationBar
+from src.mrb.common.interfaces.instancia_navigation_bar import instancia_navigation_bar
 from src.mrb.common.interfaces.auth.auth_session import AuthSession
 from src.mrb.common.config import ApiConfiguration
 from src.mrb.common.lib.aviso import Aviso
 from src.mrb.common.lib.view_ft_azul import ViewFtAzul
 
 
-def login_view(page):
-    titulo = ft.Text("Portal MRB - Login", theme_style=ft.TextThemeStyle.DISPLAY_MEDIUM)
-    nome_usuario_input = ft.TextField(
-        label="Usuário",
-        max_length=50,
-        width=400,
-        bgcolor=ft.colors.WHITE,
-        color=ft.colors.BLACK54,
-    )
-    senha_input = ft.TextField(
-        label="Senha",
-        password=True,
-        max_length=25,
-        width=400,
-        bgcolor=ft.colors.WHITE,
-        color=ft.colors.BLACK54,
-    )
-    nome_usuario_input.value = "mm.colato@gmail.com"
-    senha_input.value = "Cc0l@t0O422320"
+class Login:
+    def __init__(self, page) -> None:
+        self.dados_autenticacao = None
+        self.page = page
+        self.nome_usuario_input = ft.TextField(
+            label="Usuário",
+            prefix_icon=ft.icons.PERSON_2_OUTLINED,
+            expand=True,
+            autofocus=True,
+        )
+        self.senha_input = ft.TextField(
+            label="Senha",
+            prefix_icon=ft.icons.LOCK_OUTLINE_ROUNDED,
+            expand=True,
+            password=True,
+            can_reveal_password=True,
+        )
 
-    def on_login_click(e):
-        dados_autenticacao = None
-        login_button.disabled = True
-        login_button.update()
-        aviso = Aviso(page, modal=True)
-        if not nome_usuario_input.value:
+        # self.navigation_bar = NavigationBar("Login")
+
+        self.login_button = ft.OutlinedButton(
+            text="Login",
+            width=240,
+            icon=ft.icons.LOGIN_OUTLINED,
+            on_click=self.on_login_click,
+        )
+        self.login_view = self.get_login_view()
+
+    def on_login_click(self, e):
+        self.dados_autenticacao = None
+        self.login_button.disabled = True
+        self.login_button.update()
+        aviso = Aviso(self.page, modal=True)
+        if not self.nome_usuario_input.value:
             aviso.content = "Informe seu id de usuário para acesso ao portal!"
             aviso.title = "Atenção"
             aviso.actions = ["Ok"]
             aviso.exibir()
-        elif not senha_input.value:
+        elif not self.senha_input.value:
             aviso.content = "Digite sua senha!"
             aviso.title = "Atenção"
             aviso.actions = ["Ok"]
@@ -47,15 +57,13 @@ def login_view(page):
             response_auth = requests.post(
                 url=f"http://{ApiConfiguration.auth.URL}:{ApiConfiguration.auth.PORT}/auth",
                 data={
-                    "username": nome_usuario_input.value,
-                    "password": senha_input.value,
+                    "username": self.nome_usuario_input.value,
+                    "password": self.senha_input.value,
                 },
             )
             if response_auth.status_code == 200:
-                dados_autenticacao = response_auth.json()
-                aviso.content = (
-                    f"Bem vindo {dados_autenticacao['dados_usuario']['nome_usuario']}!"
-                )
+                self.dados_autenticacao = response_auth.json()
+                aviso.content = f"Bem vindo {self.dados_autenticacao['dados_usuario']['nome_usuario']}!"
                 aviso.title = "Acesso ao Portal"
                 aviso.actions = ["Acessar"]
             else:
@@ -66,48 +74,86 @@ def login_view(page):
                 aviso.actions = ["Ok"]
 
             aviso.exibir()
-            if dados_autenticacao:
+            if self.dados_autenticacao:
                 auth_data = AuthSession()
                 auth_data.set_auth_data(
-                    dados_autenticacao["dados_autenticacao"]["token"],
-                    dados_autenticacao["dados_usuario"],
+                    self.dados_autenticacao["dados_autenticacao"]["token"],
+                    self.dados_autenticacao["dados_usuario"],
                 )
-                login_view.visible = False
-                page.go("/menu_principal")
+                self.login_view.visible = False
+                self.page.go("/menu_principal")
 
-        login_button.disabled = False
-        login_button.update()
-        page.update()
+        self.login_button.disabled = False
+        self.login_button.update()
+        self.page.update()
 
-    login_button = ft.FilledButton(text="Login", on_click=on_login_click)
-    login_view = ft.Column(
-        controls=[
-            titulo,
-            ft.Container(
-                content=ft.Column(
-                    controls=[
-                        nome_usuario_input,
-                        senha_input,
-                        login_button,
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                width=350,
-                height=220,
-                padding=20,
-                border_radius=ft.border_radius.all(15),
-                bgcolor=ft.colors.WHITE,
-                alignment=ft.alignment.center,
+    def get_login_view(self):
+        instancia_navigation_bar.descricao = "Login"
+
+        self.nome_usuario_input.value = "mm.colato@gmail.com"
+        self.senha_input.value = "Cc0l@t0O422320"
+
+        login_control = ft.Container(
+            expand=True,
+            alignment=ft.alignment.center,
+            content=ft.Row(
+                expand=True,
+                alignment=ft.MainAxisAlignment.CENTER,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Container(
+                        padding=ft.padding.only(60, 34, 60, 20),
+                        bgcolor=ft.colors.SURFACE,
+                        border_radius=10,
+                        width=500,
+                        height=360,
+                        shadow=ft.BoxShadow(
+                            spread_radius=5,
+                            blur_radius=5,
+                            color=ft.colors.GREY_300,
+                            offset=ft.Offset(1, 1),
+                            blur_style=ft.ShadowBlurStyle.NORMAL,
+                        ),
+                        content=ft.Column(
+                            spacing=30,
+                            alignment=ft.MainAxisAlignment.START,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            tight=True,
+                            controls=[
+                                ft.Row(
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                    controls=[
+                                        ft.Text(
+                                            "Login",
+                                            theme_style=ft.TextThemeStyle.TITLE_LARGE,
+                                        )
+                                    ],
+                                ),
+                                ft.Row(controls=[self.nome_usuario_input]),
+                                ft.Row(controls=[self.senha_input]),
+                                ft.Row(
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                    controls=[self.login_button],
+                                ),
+                            ],
+                        ),
+                    )
+                ],
             ),
-        ],
-        alignment=ft.MainAxisAlignment.CENTER,
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-    )
+        )
 
-    return ViewFtAzul(
-        route="/login",
-        controls=[login_view],
-        vertical_alignment=ft.MainAxisAlignment.CENTER,
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-    )
+        login_view = ft.Column(
+            controls=[
+                login_control,
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        view_retorno = ft.View(
+            route="/login",
+            controls=[instancia_navigation_bar.get_navigation_bar(), login_view],
+            vertical_alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        # view_retorno.navigation_bar = self.navigation_bar.get_navigation_bar()
+        return view_retorno
