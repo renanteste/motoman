@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Union
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import (
@@ -253,18 +254,41 @@ class SolitacaoHorasExtras:
                 excecao=e,
             )
 
-    def listar(self, matricula: str, pagina: int, registros):
+    def listar(
+        self,
+        matricula: str,
+        pagina: int,
+        registros: int,
+        status_aprovacao: str,
+        data_de: date,
+        data_ate: date,
+    ):
         try:
             # Determina os filtros dos registros
-            condicao = None
+            condicao = []
 
             if matricula:
-                condicao = SolicitacoesHorasExtras.matricula == matricula
+                condicao.append(SolicitacoesHorasExtras.matricula == matricula)
+
+            if status_aprovacao:
+                condicao.append(
+                    SolicitacoesHorasExtras.status_aprovacao == status_aprovacao
+                )
+
+            if data_de:
+                condicao.append(
+                    cast(SolicitacoesHorasExtras.data_planejada, DATE) >= data_de
+                )
+
+            if data_ate:
+                condicao.append(
+                    cast(SolicitacoesHorasExtras.data_planejada, DATE) <= data_ate
+                )
 
             # Retorna o total de registros conforme a condição de filtro
             query = Select(func.count()).select_from(SolicitacoesHorasExtras)
             if condicao:
-                query = query.where(condicao)
+                query = query.where(and_(*condicao))
 
             retorno = {}
             retorno["total_de_registros"] = self.db.execute(query).scalar_one()
@@ -277,7 +301,7 @@ class SolitacaoHorasExtras:
                 .limit(registros)
             )
             if condicao:
-                query = query.where(condicao)
+                query = query.where(and_(*condicao))
 
             resultado = self.db.execute(query).fetchall()
             if resultado:
@@ -286,7 +310,12 @@ class SolitacaoHorasExtras:
             retorno["registros_por_pagina"] = registros
             retorno["total_de_paginas"] = (
                 retorno["total_de_registros"] // registros
-            ) + 1
+            ) + (
+                1
+                if not retorno["total_de_registros"] // registros
+                == retorno["total_de_registros"] / registros
+                else 0
+            )
 
             retorno["solicitacoes_horas_extras"] = []
             colunas = [
@@ -438,6 +467,9 @@ def lista_solicitacoes_horas_extras(
     matricula: Union[str, None] = None,
     pagina: Union[int, None] = 1,
     registros: Union[int, None] = 10,
+    status_aprovacao: Union[str, None] = None,
+    data_de: Union[date, None] = None,
+    data_ate: Union[date, None] = None,
 ) -> ListaSolicitacaoHorasExtras:
     """
     Retorna lista de solicitações de horas extras.
@@ -446,6 +478,7 @@ def lista_solicitacoes_horas_extras(
     <p><b>matricula</b>: código da matrícula para seleção dos registros
     <p><b>pagina</b>: número da página dos dados
     <p><b>registros</b>: quantidade de registros por página
+    <p><b>status_aprovacao</b>: código do estatus de aprovação para seleção dos registros
 
     """
     # Validar se tem acesso pelo token
@@ -456,7 +489,9 @@ def lista_solicitacoes_horas_extras(
 
     # Instancia a classe para retornar os registros
     solicitacao_horas_extras = SolitacaoHorasExtras(db)
-    return solicitacao_horas_extras.listar(matricula, pagina, registros)
+    return solicitacao_horas_extras.listar(
+        matricula, pagina, registros, status_aprovacao, data_de, data_ate
+    )
 
 
 @solicitacao_horas_extras_router.get("/solicitacao_horas_extras/{id}")

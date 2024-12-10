@@ -6,8 +6,15 @@ from src.mrb.common.interfaces.auth.auth_session import AuthSession
 
 
 def main(page: ft.Page):
+    page.window.maximized = True
     page.title = "Portal MRB"
-    page.bgcolor = ft.colors.BLUE
+    page.theme_mode = ft.ThemeMode(
+        page.client_storage.get("page_theme_mode") or "light"
+    )
+    page.theme = ft.Theme(
+        color_scheme_seed=page.client_storage.get("page_color_scheme_seed")
+        or "BLUE_300"
+    )
 
     portal_mrb_app = PortalMrbApp(page)
 

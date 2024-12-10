@@ -1,13 +1,11 @@
 import datetime
 import locale
-import time
 import flet as ft
-from apscheduler.schedulers.blocking import BlockingScheduler
 
 
 class NavigationBar:
-    def __init__(self, descricao: str) -> None:
-        self.pediu_para_parar = False
+    def __init__(self, descricao: str, page: ft.Page = None) -> None:
+        self.page = page
         self.descricao = f"Portal MRB - {descricao}"
         self.hour_text = ft.Text("hora", size=15, weight=ft.FontWeight.W_600)
         self.week_text = ft.Text("semana", size=12, weight=ft.FontWeight.W_200)
@@ -17,7 +15,7 @@ class NavigationBar:
         self.btn_change_theme = ft.IconButton(
             icon=ft.icons.DARK_MODE_OUTLINED,
             tooltip="Tema claro/escuro",
-            on_click=print("change_theme"),
+            on_click=lambda e: self.change_theme(e=e),
         )
         self.text_user = ft.Text(
             "Faça o Login para acessar o sistema!", size=15, weight=ft.FontWeight.W_600
@@ -26,20 +24,19 @@ class NavigationBar:
             icon=ft.icons.LOGOUT_OUTLINED,
             disabled=True,
             tooltip="Logout",
-            on_click=print("logout"),
+            on_click=lambda _: self.page.go("/logout"),
         )
 
-        self.scheduler = BlockingScheduler()
-        self.scheduler.add_job(self.update_day, "interval", seconds=1, args=[descricao])
         locale.setlocale(locale.LC_ALL, "pt_BR.utf8")
         self.update_day()
-        # if not self.scheduler.running:
-        #     self.scheduler.start()
-        self.navigation_bar = self.get_navigation_bar()
 
-    def get_navigation_bar(self):
-        # if not self.scheduler.running:
-        #     self.scheduler.start()
+    def get_navigation_bar(self, descricao: str, nome_usuario: str = None):
+        self.descricao = descricao
+        if nome_usuario:
+            self.text_user.value = nome_usuario.capitalize()
+            self.btn_logout.disabled = False
+
+        self.update_day()
 
         return ft.AppBar(
             elevation=10,
@@ -80,7 +77,7 @@ class NavigationBar:
                                     ft.Text("Roxo"),
                                 ]
                             ),
-                            on_click=print("change_color_seed"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row(
@@ -92,7 +89,7 @@ class NavigationBar:
                                     ft.Text("Laranja"),
                                 ]
                             ),
-                            on_click=print("change_color_seed"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row(
@@ -104,7 +101,7 @@ class NavigationBar:
                                     ft.Text("Verde"),
                                 ]
                             ),
-                            on_click=print("change_color_seed"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row(
@@ -116,7 +113,7 @@ class NavigationBar:
                                     ft.Text("Vermelho"),
                                 ]
                             ),
-                            on_click=print("change_color_seed,"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row(
@@ -128,7 +125,7 @@ class NavigationBar:
                                     ft.Text("Azul (Default)"),
                                 ]
                             ),
-                            on_click=print("change_color_seed"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row(
@@ -140,7 +137,7 @@ class NavigationBar:
                                     ft.Text("Amarelo"),
                                 ]
                             ),
-                            on_click=print("change_color_seed"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row(
@@ -152,7 +149,7 @@ class NavigationBar:
                                     ft.Text("Indigo"),
                                 ]
                             ),
-                            on_click=print("change_color_seed"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row(
@@ -164,7 +161,7 @@ class NavigationBar:
                                     ft.Text("Teal"),
                                 ]
                             ),
-                            on_click=print("change_color_seed"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row(
@@ -176,7 +173,7 @@ class NavigationBar:
                                     ft.Text("Lime"),
                                 ]
                             ),
-                            on_click=print("change_color_seed"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row(
@@ -188,7 +185,7 @@ class NavigationBar:
                                     ft.Text("Marrom"),
                                 ]
                             ),
-                            on_click=print("change_color_seed"),
+                            on_click=lambda e: self.change_color_seed(e=e),
                         ),
                     ],
                 ),
@@ -203,18 +200,31 @@ class NavigationBar:
             ],
         )
 
-    def update_day(self, descricao: str = None):
-        if descricao:
-            print(descricao)
+    def change_color_seed(self, e):
+        self.page.theme = ft.Theme(
+            color_scheme_seed=e.control.content.controls[0].color
+        )
+        self.page.update()
+        self.page.client_storage.set(
+            "page_color_scheme_seed", self.page.theme.color_scheme_seed
+        )
 
+    def change_theme(self, e):
+        if self.page.theme_mode == ft.ThemeMode.LIGHT:
+            self.page.theme_mode = ft.ThemeMode.DARK
+            self.btn_change_theme.icon = ft.icons.WB_SUNNY_OUTLINED
+
+        else:
+            self.page.theme_mode = ft.ThemeMode.LIGHT
+            self.btn_change_theme.icon = ft.icons.DARK_MODE_OUTLINED
+
+        self.page.update()
+
+        self.page.client_storage.set("page_theme_mode", self.page.theme_mode.value)
+
+    def update_day(self):
         # Obtém a data atual
         today = datetime.date.today()
-
-        # Obtem a hora atual
-        agora = datetime.datetime.now()
-
-        # Formata a hora em uma string com o formato h:m:s
-        hora_formatada = agora.strftime("%H:%M:%S")
 
         # Define o formato de data para apenas dia e mês
         date_format = "%d/%m"
@@ -226,15 +236,17 @@ class NavigationBar:
         day_of_week_text = today.strftime("%A")
 
         # Define o texto das labels
-        self.hour_text.value = f"{date_text} - {hora_formatada}"
+        self.hour_text.value = f"{date_text}"
         self.week_text.value = day_of_week_text.upper()
         self.text_title.value = self.descricao
         if self.hour_text.parent:
             self.hour_text.update()
+
+        if self.week_text.parent:
             self.week_text.update()
+
+        if self.text_title.parent:
             self.text_title.update()
 
-        else:
-            if self.scheduler.running:
-                self.pediu_para_parar = True
-                self.scheduler.shutdown(False)
+        if self.text_user.parent:
+            self.text_user.update()

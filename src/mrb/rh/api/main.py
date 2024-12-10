@@ -85,7 +85,14 @@ async def log_requests(request: Request, call_next):
         logging.info(f"Headers: {request.headers}")
 
         body = await request.body()
-        logging.info(f"Body: {body.decode('utf-8', errors='replace')}")
+        body_decoded = body.decode("utf-8", errors="replace")
+
+        if "password=" in body_decoded:
+            body_decoded = body_decoded.replace(
+                body_decoded.split("password=")[1].split("&")[0], "***"
+            )
+
+        logging.info(f"Body: {body_decoded}")
 
         response = await call_next(request)
         logging.info(f"Response status: {response.status_code}")

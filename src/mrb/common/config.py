@@ -25,6 +25,7 @@ class ApiConfiguration:
     class rh:
         HOST = "0.0.0.0"
         PORT = 8000
+        SERVER = "127.0.0.1"
 
     class comercial:
         HOST = "0.0.0.0"

@@ -8,9 +8,10 @@ def main(page: Page):
     page.window.min_height = 700
     page.window.min_width = 1360
 
+    print(page.theme_mode)
     page.theme_mode = ThemeMode.LIGHT
     page.theme = Theme(color_scheme_seed=colors.BLUE_300)
-
+    print(page.theme_mode)
     portal_mrb_app = PortalMrbApp(page=page)
     page.on_route_change = portal_mrb_app.route_change
 

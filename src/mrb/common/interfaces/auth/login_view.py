@@ -1,19 +1,17 @@
-# login_view.py
 import flet as ft
 import requests
 
-# from src.mrb.common.interfaces.navigation_bar import NavigationBar
-from src.mrb.common.interfaces.instancia_navigation_bar import instancia_navigation_bar
+from src.mrb.common.interfaces.navigation_bar import NavigationBar
 from src.mrb.common.interfaces.auth.auth_session import AuthSession
 from src.mrb.common.config import ApiConfiguration
 from src.mrb.common.lib.aviso import Aviso
-from src.mrb.common.lib.view_ft_azul import ViewFtAzul
 
 
 class Login:
-    def __init__(self, page) -> None:
+    def __init__(self, page: ft.Page, navigation_bar: NavigationBar) -> None:
         self.dados_autenticacao = None
         self.page = page
+        self.navigation_bar = navigation_bar
         self.nome_usuario_input = ft.TextField(
             label="Usuário",
             prefix_icon=ft.icons.PERSON_2_OUTLINED,
@@ -28,8 +26,6 @@ class Login:
             can_reveal_password=True,
         )
 
-        # self.navigation_bar = NavigationBar("Login")
-
         self.login_button = ft.OutlinedButton(
             text="Login",
             width=240,
@@ -41,7 +37,8 @@ class Login:
     def on_login_click(self, e):
         self.dados_autenticacao = None
         self.login_button.disabled = True
-        self.login_button.update()
+        if self.login_button.parent:
+            self.login_button.update()
         aviso = Aviso(self.page, modal=True)
         if not self.nome_usuario_input.value:
             aviso.content = "Informe seu id de usuário para acesso ao portal!"
@@ -55,6 +52,7 @@ class Login:
             aviso.exibir()
         else:
             response_auth = requests.post(
+                headers={"User-Agent": "PortalPy"},
                 url=f"http://{ApiConfiguration.auth.URL}:{ApiConfiguration.auth.PORT}/auth",
                 data={
                     "username": self.nome_usuario_input.value,
@@ -84,11 +82,12 @@ class Login:
                 self.page.go("/menu_principal")
 
         self.login_button.disabled = False
-        self.login_button.update()
+        if self.login_button.parent:
+            self.login_button.update()
         self.page.update()
 
     def get_login_view(self):
-        instancia_navigation_bar.descricao = "Login"
+        self.navigation_bar.descricao = "Login"
 
         self.nome_usuario_input.value = "mm.colato@gmail.com"
         self.senha_input.value = "Cc0l@t0O422320"
@@ -149,11 +148,9 @@ class Login:
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
-        view_retorno = ft.View(
+        return ft.View(
             route="/login",
-            controls=[instancia_navigation_bar.get_navigation_bar(), login_view],
+            controls=[self.navigation_bar.get_navigation_bar("Login"), login_view],
             vertical_alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
-        # view_retorno.navigation_bar = self.navigation_bar.get_navigation_bar()
-        return view_retorno
