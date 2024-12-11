@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 import flet as ft
 import requests
 
@@ -104,7 +105,7 @@ class SolicitacaoHorasExtras:
             tooltip="Nova Solicitação de Hora Extra",
             icon_color="primary",
             icon_size=36,
-            on_click=self.nova_solicitacao_hora_extra,
+            on_click=lambda _: self.interface_edicao_hora_extra(),
         )
         self.browse_solicitacoes = ft.DataTable(
             expand=True,
@@ -132,18 +133,178 @@ class SolicitacaoHorasExtras:
             content=ft.Container(padding=10, content=self.coluna_painel_visualizacao),
             visible=False,
         )
+        self.coluna_painel_edicao = ft.Column()
+        self.cartao_painel_edicao = ft.Card(
+            elevation=1.5,
+            animate_scale=200,
+            surface_tint_color=ft.colors.INVERSE_PRIMARY,
+            content=ft.Container(padding=10, content=self.coluna_painel_edicao),
+            visible=False,
+        )
+        self.campo_data_planejada = ft.TextField(
+            dense=True,
+            on_change=lambda e: self.preenche_data(e, atualiza_dados=False),
+            width=120,
+            hint_text="  /  /    ",
+            data="",
+            bgcolor=ft.colors.WHITE,
+            on_blur=lambda e: self.on_blur_data_planejada(e),
+        )
+        self.campo_quantidade_horas = ft.TextField(
+            dense=True,
+            on_change=lambda e: self.preenche_horas(e),
+            width=120,
+            hint_text="0,00",
+            data="",
+            bgcolor=ft.colors.WHITE,
+            tooltip="Digitar o total de horas decimais planejadas. Ex.: 2h 30m = 2,50h.",
+            text_align=ft.TextAlign.RIGHT,
+        )
+        self.campo_motivo = ft.TextField(
+            dense=True,
+            expand=True,
+            bgcolor=ft.colors.WHITE,
+            tooltip="Informe o motivo da necessidade de horas extras",
+            max_length=250,
+            multiline=True,
+            on_change=lambda e: self.on_change_motivo(e),
+        )
 
-    def preenche_data(self, e):
-        digits_only = "".join(filter(str.isdigit, e.control.value))
+    def habilitar_desabilitar_inclusao(self):
+        self.cartao_painel_edicao.visible = not self.cartao_painel_edicao.visible
+        self.cartao_painel_visualizacao.visible = (
+            not self.cartao_painel_visualizacao.visible
+        )
+        self.botao_nova_solicitacao.disabled = not self.botao_nova_solicitacao.disabled
+        self.page.update()
 
-        formatted = ""
-        if len(digits_only) > 0:
-            formatted += digits_only[:2]
-        if len(digits_only) > 2:
-            formatted += "/" + digits_only[2:4]
-        if len(digits_only) > 4:
-            formatted += "/" + digits_only[4:8]
-        if len(digits_only) == 8:
+    def limpa_campos_inclusao(self):
+        self.campo_data_planejada.value = ""
+        self.campo_quantidade_horas.value = ""
+        self.campo_motivo.value = ""
+
+    def cancelar_inclusao(self):
+        if (
+            Aviso(
+                self.page,
+                content="Descartar as informações digitadas?",
+                title="Atenção",
+                actions=["Sim", "Não"],
+            ).exibir()
+            == 0
+        ):
+            self.habilitar_desabilitar_inclusao()
+            self.limpa_campos_inclusao()
+
+    def salvar_inclusao(self):
+        if (
+            self.campo_data_planejada == ""
+            or self.campo_motivo == ""
+            or self.campo_quantidade_horas == ""
+        ):
+            Aviso(
+                self.page,
+                content="Preencha todos os campos antes de salvar!",
+                title="Atenção",
+                actions=["Ok"],
+            ).exibir()
+
+        elif (
+            Aviso(
+                self.page,
+                content="Salvar as informações digitadas?",
+                title="Atenção",
+                actions=["Sim", "Não"],
+            ).exibir()
+            == 0
+        ):
+            auth_session = AuthSession()
+            solicitacao_horas_extras = {
+                "matricula": auth_session.user_data["dados_cadastro_recursos"][
+                    "matricula"
+                ],
+                "data_solicitacao": datetime.now().isoformat(),
+                "data_planejada": datetime.strptime(
+                    self.campo_data_planejada.value, "%d/%m/%Y"
+                ).isoformat(),
+                "motivo": self.campo_motivo.value,
+                "total_horas_planejada": self.campo_quantidade_horas.value.replace(
+                    ",", "."
+                ),
+                "status_aprovacao": "0",
+            }
+            response_solicitacoes = requests.post(
+                headers={"Authorization": f"Bearer {auth_session.token}"},
+                url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/solicitacao_horas_extras",
+                json=solicitacao_horas_extras,
+            )
+
+            if response_solicitacoes.status_code == 200:
+                dados_retornados = response_solicitacoes.json()
+                Aviso(
+                    self.page,
+                    content=f"Salva com id {dados_retornados[0]['id']}!",
+                    title="Sucesso",
+                    actions=["Ok"],
+                ).exibir()
+                self.habilitar_desabilitar_inclusao()
+                self.limpa_campos_inclusao()
+                self.carrega_solicitacoes()
+
+            else:
+                if response_solicitacoes.status_code == 401:
+                    self.page.go("/logout")
+
+                else:
+                    Aviso(
+                        self.page,
+                        content=f"Falha na requisição de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
+                        title="Requisição de Solicitações",
+                        actions=["Fechar"],
+                    ).exibir()
+
+    def preenche_horas(self, e):
+        apenas_numeros = "".join(c for c in e.control.value if c.isdigit())
+
+        apenas_numeros = apenas_numeros.zfill(3)
+
+        inteiro = apenas_numeros[:-2]
+        decimal = apenas_numeros[-2:]
+
+        if int(inteiro) > 24 or (int(inteiro) == 24 and int(decimal) > 0):
+            Aviso(
+                self.page,
+                content="Total de horas não pode ser maior que 24!",
+                title="Atenção",
+                actions=["Ok"],
+            ).exibir()
+            e.control.value = e.control.data
+
+        else:
+            e.control.value = f"{int(inteiro)},{decimal}"
+            e.control.data = e.control.value
+
+        e.control.update()
+
+    def on_blur_data_planejada(self, e):
+        try:
+            datetime.strptime(e.control.value, "%d/%m/%Y")
+
+        except ValueError:
+            e.control.value = ""
+            e.control.update()
+
+    def preenche_data(self, e, atualiza_dados: bool = True):
+        somente_digitos = "".join(filter(str.isdigit, e.control.value))
+
+        formatado = ""
+        if len(somente_digitos) > 0:
+            formatado += somente_digitos[:2]
+        if len(somente_digitos) > 2:
+            formatado += "/" + somente_digitos[2:4]
+        if len(somente_digitos) > 4:
+            formatado += "/" + somente_digitos[4:8]
+        if len(somente_digitos) == 8:
             try:
                 datetime.strptime(e.control.value, "%d/%m/%Y")
 
@@ -151,16 +312,18 @@ class SolicitacaoHorasExtras:
                 Aviso(
                     self.page, content="A data digitada é inválida!", actions=["Ok"]
                 ).exibir()
-                formatted = e.control.data
+                formatado = e.control.data
 
         # Se a data formatada é vazia ou tem tamanho igual a 10 e é diferente da anterior, executa o filtro
         if (
-            len(formatted) == 0 or len(formatted) == 10
-        ) and not formatted == e.control.data:
-            e.control.data = formatted
-            self.carrega_solicitacoes()
+            len(formatado) == 0 or len(formatado) == 10
+        ) and not formatado == e.control.data:
+            e.control.data = formatado
 
-        e.control.value = formatted
+            if atualiza_dados:
+                self.carrega_solicitacoes()
+
+        e.control.value = formatado
 
         e.control.update()
 
@@ -168,6 +331,10 @@ class SolicitacaoHorasExtras:
         if not e.control.value.isdigit():
             e.control.value = "".join(filter(str.isdigit, e.control.value))
 
+        e.control.update()
+
+    def on_change_motivo(self, e):
+        e.control.value = e.control.value.replace("\n", "")
         e.control.update()
 
     def enter_pagina_atual(self, e):
@@ -288,7 +455,8 @@ class SolicitacaoHorasExtras:
                                             ft.Column(
                                                 horizontal_alignment="center",
                                                 controls=[
-                                                    self.cartao_painel_visualizacao
+                                                    self.cartao_painel_visualizacao,
+                                                    self.cartao_painel_edicao,
                                                 ],
                                             ),
                                         ],
@@ -374,7 +542,7 @@ class SolicitacaoHorasExtras:
                     ft.IconButton(
                         icon=ft.icons.EDIT_OUTLINED,
                         icon_color="blue",
-                        data=solicitacao["id"],
+                        data=(solicitacao["id"], len(self.browse_solicitacoes.rows)),
                         tooltip="Editar solicitação",
                         on_click=self.editar_solicitacao,
                     ),
@@ -432,16 +600,26 @@ class SolicitacaoHorasExtras:
                         ),
                     )
                 )
+
+            if retorno_solicitacoes["solicitacoes_horas_extras"]:
+                self.clique_browse_solicitacoes(
+                    retorno_solicitacoes["solicitacoes_horas_extras"][0]
+                )
+
             self.atualiza_barra_navegacao()
             self.page.update()
 
         else:
-            Aviso(
-                self.page,
-                content=f"Falha na requisição de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
-                title="Requisição de Solicitações",
-                actions=["Fechar"],
-            ).exibir()
+            if response_solicitacoes.status_code == 401:
+                self.page.go("/logout")
+
+            else:
+                Aviso(
+                    self.page,
+                    content=f"Falha na requisição de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
+                    title="Requisição de Solicitações",
+                    actions=["Fechar"],
+                ).exibir()
 
     def solicitar_liberacao(self, e):
         confirma_solicitar_liberacao = (
@@ -468,151 +646,156 @@ class SolicitacaoHorasExtras:
             json=dados_solicitacao,
         )
         if not response_solicitacoes.status_code == 200:
-            Aviso(
-                self.page,
-                content=f"Falha na atualização de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
-                title="Alteração de Solicitação",
-                actions=["Fechar"],
-            ).exibir()
-            retorno_atualizacao = False
+            if response_solicitacoes.status_code == 401:
+                self.page.go("/logout")
+
+            else:
+                Aviso(
+                    self.page,
+                    content=f"Falha na atualização de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
+                    title="Alteração de Solicitação",
+                    actions=["Fechar"],
+                ).exibir()
+                retorno_atualizacao = False
         return retorno_atualizacao
 
     def clique_browse_solicitacoes(self, solicitacao: dict):
-        self.cartao_painel_visualizacao.visible = True
-        self.coluna_painel_visualizacao.controls.clear()
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.CENTER,
-                controls=[
-                    ft.Text(
-                        f"Dados da Solicitação Id: {solicitacao['id']}",
-                        text_align=ft.TextAlign.CENTER,
-                        expand=True,
-                        theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
-                    )
-                ],
+        if not self.cartao_painel_edicao.visible:
+            self.cartao_painel_visualizacao.visible = True
+            self.coluna_painel_visualizacao.controls.clear()
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    controls=[
+                        ft.Text(
+                            f"Dados da Solicitação Id: {solicitacao['id']}",
+                            text_align=ft.TextAlign.CENTER,
+                            expand=True,
+                            theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
+                        )
+                    ],
+                )
             )
-        )
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.START,
-                spacing=20,
-                controls=[
-                    ft.Text(
-                        "Matrícula: ",
-                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
-                    ),
-                    ft.Text(solicitacao["matricula"]),
-                ],
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.START,
+                    spacing=20,
+                    controls=[
+                        ft.Text(
+                            "Matrícula: ",
+                            theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                        ),
+                        ft.Text(solicitacao["matricula"]),
+                    ],
+                )
             )
-        )
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.START,
-                spacing=20,
-                controls=[
-                    ft.Text(
-                        "Data Planejada: ",
-                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
-                    ),
-                    ft.Text(iso_to_date(solicitacao["data_planejada"])),
-                ],
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.START,
+                    spacing=20,
+                    controls=[
+                        ft.Text(
+                            "Data Planejada: ",
+                            theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                        ),
+                        ft.Text(iso_to_date(solicitacao["data_planejada"])),
+                    ],
+                )
             )
-        )
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.START,
-                spacing=20,
-                controls=[
-                    ft.Text(
-                        "Quantidade de Horas Planejadas: ",
-                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
-                    ),
-                    ft.Text(solicitacao["total_horas_planejada"]),
-                ],
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.START,
+                    spacing=20,
+                    controls=[
+                        ft.Text(
+                            "Quantidade de Horas Planejadas: ",
+                            theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                        ),
+                        ft.Text(solicitacao["total_horas_planejada"]),
+                    ],
+                )
             )
-        )
-        self.coluna_painel_visualizacao.controls.append(ft.Divider())
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.START,
-                spacing=20,
-                controls=[
-                    ft.Text(
-                        "Data da Solicitação: ",
-                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
-                    ),
-                    ft.Text(iso_to_date(solicitacao["data_solicitacao"])),
-                ],
+            self.coluna_painel_visualizacao.controls.append(ft.Divider())
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.START,
+                    spacing=20,
+                    controls=[
+                        ft.Text(
+                            "Data da Solicitação: ",
+                            theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                        ),
+                        ft.Text(iso_to_date(solicitacao["data_solicitacao"])),
+                    ],
+                )
             )
-        )
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.START,
-                spacing=20,
-                controls=[
-                    ft.Text(
-                        "Motivo: ",
-                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
-                    ),
-                    ft.Text(solicitacao["motivo"]),
-                ],
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.START,
+                    spacing=20,
+                    controls=[
+                        ft.Text(
+                            "Motivo: ",
+                            theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                        ),
+                        ft.Text(solicitacao["motivo"], expand=True),
+                    ],
+                )
             )
-        )
-        self.coluna_painel_visualizacao.controls.append(ft.Divider())
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.START,
-                spacing=20,
-                controls=[
-                    ft.Text(
-                        "Status da Aprovação: ",
-                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
-                    ),
-                    ft.Text(STATUS_APROVACAO[solicitacao["status_aprovacao"]]),
-                ],
+            self.coluna_painel_visualizacao.controls.append(ft.Divider())
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.START,
+                    spacing=20,
+                    controls=[
+                        ft.Text(
+                            "Status da Aprovação: ",
+                            theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                        ),
+                        ft.Text(STATUS_APROVACAO[solicitacao["status_aprovacao"]]),
+                    ],
+                )
             )
-        )
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.START,
-                spacing=20,
-                controls=[
-                    ft.Text(
-                        "Data da Aprovação: ",
-                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
-                    ),
-                    ft.Text(iso_to_date(solicitacao["data_aprovacao"])),
-                ],
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.START,
+                    spacing=20,
+                    controls=[
+                        ft.Text(
+                            "Data da Aprovação: ",
+                            theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                        ),
+                        ft.Text(iso_to_date(solicitacao["data_aprovacao"])),
+                    ],
+                )
             )
-        )
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.START,
-                spacing=20,
-                controls=[
-                    ft.Text(
-                        "Matrícula do Aprovador: ",
-                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
-                    ),
-                    ft.Text(solicitacao["matricula_aprovador"]),
-                ],
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.START,
+                    spacing=20,
+                    controls=[
+                        ft.Text(
+                            "Matrícula do Aprovador: ",
+                            theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                        ),
+                        ft.Text(solicitacao["matricula_aprovador"]),
+                    ],
+                )
             )
-        )
-        self.coluna_painel_visualizacao.controls.append(
-            ft.Row(
-                alignment=ft.MainAxisAlignment.START,
-                spacing=20,
-                controls=[
-                    ft.Text(
-                        "Comentários: ",
-                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
-                    ),
-                    ft.Text(solicitacao["comentario_aprovador"]),
-                ],
+            self.coluna_painel_visualizacao.controls.append(
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.START,
+                    spacing=20,
+                    controls=[
+                        ft.Text(
+                            "Comentários: ",
+                            theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                        ),
+                        ft.Text(solicitacao["comentario_aprovador"], expand=True),
+                    ],
+                )
             )
-        )
-        self.cartao_painel_visualizacao.update()
+            self.page.update()
 
     def apagar_solicitacao(self, e):
         confirma_apagar_liberacao = (
@@ -637,15 +820,21 @@ class SolicitacaoHorasExtras:
                 self.carrega_solicitacoes()
 
             else:
-                Aviso(
-                    self.page,
-                    content=f"Falha na exclusão de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
-                    title="Alteração de Solicitação",
-                    actions=["Fechar"],
-                ).exibir()
+                if response_solicitacoes.status_code == 401:
+                    self.page.go("/logout")
+
+                else:
+                    Aviso(
+                        self.page,
+                        content=f"Falha na exclusão de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
+                        title="Alteração de Solicitação",
+                        actions=["Fechar"],
+                    ).exibir()
 
     def editar_solicitacao(self, e):
-        print("Editar solicitação")
+        self.interface_edicao_hora_extra(
+            self.browse_solicitacoes.rows[e.control.data[1]].data
+        )
 
     def limpar_filtros(self):
         self.texto_data_de.value = ""
@@ -656,5 +845,82 @@ class SolicitacaoHorasExtras:
         self.botao_limpa_filtros.disabled = True
         self.carrega_solicitacoes()
 
-    def nova_solicitacao_hora_extra(self):
-        print("Nova solicitação de hora extra")
+    def interface_edicao_hora_extra(self, dados_solicitacao: dict = None):
+        if dados_solicitacao:
+            titulo = [f"Dados da Solicitação Id: {dados_solicitacao['id']}"]
+            self.campo_data_planejada.value = iso_to_date(
+                dados_solicitacao["data_planejada"]
+            )
+            self.campo_quantidade_horas.value = dados_solicitacao[
+                "total_horas_planejada"
+            ].replace(".", ",")
+            self.campo_motivo.value = dados_solicitacao["motivo"]
+
+        else:
+            titulo = ["Dados da Nova Solicitação"]
+
+        auth_session = AuthSession()
+        self.coluna_painel_edicao.controls = [
+            ft.Row(
+                alignment=ft.MainAxisAlignment.CENTER,
+                controls=[
+                    ft.Text(
+                        titulo,
+                        text_align=ft.TextAlign.CENTER,
+                        expand=True,
+                        theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
+                    )
+                ],
+            ),
+            ft.Row(
+                controls=[
+                    ft.Text("Matrícula:", theme_style=ft.TextThemeStyle.LABEL_LARGE),
+                    ft.Text(
+                        auth_session.user_data["dados_cadastro_recursos"]["matricula"]
+                    ),
+                ],
+            ),
+            ft.Row(
+                controls=[
+                    ft.Text(
+                        "Data Planejada:", theme_style=ft.TextThemeStyle.LABEL_LARGE
+                    ),
+                    self.campo_data_planejada,
+                ],
+            ),
+            ft.Row(
+                controls=[
+                    ft.Text(
+                        "Quantidade de Horas Planejadas:",
+                        theme_style=ft.TextThemeStyle.LABEL_LARGE,
+                    ),
+                    self.campo_quantidade_horas,
+                ]
+            ),
+            ft.Row(
+                controls=[ft.Text("Motivo:", theme_style=ft.TextThemeStyle.LABEL_LARGE)]
+            ),
+            ft.Row(controls=[self.campo_motivo]),
+            ft.Divider(),
+            ft.Row(
+                alignment=ft.MainAxisAlignment.CENTER,
+                controls=[
+                    ft.IconButton(
+                        icon=ft.icons.CHECK_CIRCLE_OUTLINE_OUTLINED,
+                        icon_color=ft.colors.GREEN,
+                        icon_size=40,
+                        tooltip="Salvar",
+                        on_click=lambda _: self.salvar_inclusao(),
+                    ),
+                    ft.IconButton(
+                        icon=ft.icons.CANCEL_OUTLINED,
+                        icon_color=ft.colors.RED,
+                        icon_size=40,
+                        tooltip="Cancelar",
+                        on_click=lambda _: self.cancelar_inclusao(),
+                    ),
+                ],
+            ),
+        ]
+
+        self.habilitar_desabilitar_inclusao()
