@@ -30,6 +30,7 @@ class SolicitacaoHorasExtras:
         self.navigation_bar = navigation_bar
         self.botoes_menu_principal = botoes_menu_principal
 
+        # Componentes da paginação
         self.pagina_atual_browse = 0
         self.total_paginas_browse = ft.Text("0")
         self.botao_primeira_pagina = ft.IconButton(
@@ -72,6 +73,7 @@ class SolicitacaoHorasExtras:
             ),
         )
 
+        # Componentes da filtragem de registros
         self.botao_limpa_filtros = ft.IconButton(
             icon=ft.icons.FILTER_ALT_OFF_OUTLINED,
             tooltip="Limpar filtros",
@@ -100,12 +102,16 @@ class SolicitacaoHorasExtras:
             on_change=lambda _: self.carrega_solicitacoes(),
             height=40,
         )
+
+        # Inclusão de novo registro
         self.botao_nova_solicitacao = ft.IconButton(
             icon=ft.icons.ADD_OUTLINED,
             tooltip="Nova Solicitação de Hora Extra",
             icon_color="primary",
             on_click=lambda _: self.interface_edicao_hora_extra(),
         )
+
+        # Componentes do grid de registros
         self.browse_solicitacoes = ft.DataTable(
             expand=True,
             divider_thickness=0.4,
@@ -124,6 +130,8 @@ class SolicitacaoHorasExtras:
             ],
             rows=[],
         )
+
+        # Componentes do painel lateral direito
         self.coluna_painel_visualizacao = ft.Column()
         self.cartao_painel_visualizacao = ft.Card(
             elevation=1.5,
@@ -132,13 +140,15 @@ class SolicitacaoHorasExtras:
             content=ft.Container(padding=10, content=self.coluna_painel_visualizacao),
             visible=False,
         )
+
+        # Componentes do painel de edição
+        self.dados_solicitacoes = None  # Utilizado como pivô para salvar os registros
         self.titulo_painel_edicao = ft.Text(
             "",
             text_align=ft.TextAlign.CENTER,
             expand=True,
             theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
         )
-        self.dados_solicitacoes = None
         self.campo_data_planejada = ft.TextField(
             dense=True,
             on_change=lambda e: self.preenche_data(e, atualiza_dados=False),
@@ -167,7 +177,6 @@ class SolicitacaoHorasExtras:
             multiline=True,
             on_change=lambda e: self.on_change_motivo(e),
         )
-
         self.matricula_painel_edicao = ft.Text("")
         self.coluna_painel_edicao = ft.Column(
             controls=[
@@ -239,6 +248,11 @@ class SolicitacaoHorasExtras:
         )
 
     def habilitar_desabilitar_edicao(self):
+        """
+        Método faz a mudança entre os painéis de visualização e edição.
+        \n
+        Quando é chamado, desativa o que está ativo e vice-versa.
+        """
         self.cartao_painel_edicao.visible = not self.cartao_painel_edicao.visible
         self.cartao_painel_visualizacao.visible = (
             not self.cartao_painel_visualizacao.visible
@@ -247,11 +261,19 @@ class SolicitacaoHorasExtras:
         self.page.update()
 
     def limpa_campos_edicao(self):
+        """
+        Método deve ser invocado após o fechamento da tela de edição.
+        \n
+        Reponsável por limpar o conteúdo dos campos da tela para não interferir na próxima operação.
+        """
         self.campo_data_planejada.value = ""
         self.campo_quantidade_horas.value = ""
         self.campo_motivo.value = ""
 
     def cancelar_edicao(self):
+        """
+        Fecha a tela de edição sem salvar os dados e após confirmação do usuário
+        """
         if (
             Aviso(
                 self.page,
@@ -265,10 +287,17 @@ class SolicitacaoHorasExtras:
             self.limpa_campos_edicao()
 
     def salvar_edicao(self, dados_solicitacao: dict = None):
+        """
+        Valida os dados digitados pelo usuário.
+        \n
+        Se os dados estão válidos, monta o dicionário de requisição e direciona ao método para incluir ou alterar via API.
+        \n
+        Se o argumento 'dados_solicitacao' for enviado, indica que é um processo de alteração, não inclusão.
+        """
         if (
-            self.campo_data_planejada == ""
-            or self.campo_motivo == ""
-            or self.campo_quantidade_horas == ""
+            self.campo_data_planejada.value == ""
+            or self.campo_motivo.value == ""
+            or self.campo_quantidade_horas.value == ""
         ):
             Aviso(
                 self.page,
@@ -327,6 +356,11 @@ class SolicitacaoHorasExtras:
                 self.carrega_solicitacoes()
 
     def envia_inclusao_solicitacao(self, solicitacao_horas_extras: dict) -> bool:
+        """
+        Faz o request da API para inclusão dos dados (post) e trata o retorno obtido.
+        \n
+        Retorna True se a transação foi bem sucedida.
+        """
         auth_session = AuthSession()
         retorno_envio = False
 
@@ -361,6 +395,14 @@ class SolicitacaoHorasExtras:
         return retorno_envio
 
     def preenche_horas(self, e):
+        """
+        Método trata a digitação do campo de quantidade de horas decimais.
+        \n
+        Permite apenas números e preenche automaticamente a vírgula decimal e o formato do dado digitado.
+        \n
+        Caso o usuário informe um conteúdo inválido, restaura o conteúdo anterior utilizando a
+        propriedade 'data' do TextField como pivô.
+        """
         apenas_numeros = "".join(c for c in e.control.value if c.isdigit())
 
         apenas_numeros = apenas_numeros.zfill(3)
@@ -384,14 +426,27 @@ class SolicitacaoHorasExtras:
         e.control.update()
 
     def on_blur_data_planejada(self, e):
-        try:
-            datetime.strptime(e.control.value, "%d/%m/%Y")
+        """
+        Método executado ao entrar ou sair do TextField data data planejada.
+        \n
+        Garante que o usuário tenha informado uma data válida, limpando o conteúdo do campo em caso contrário.
+        """
+        if e.control.value and len(e.control.value) == 10:
+            try:
+                datetime.strptime(e.control.value, "%d/%m/%Y")
 
-        except ValueError:
-            e.control.value = ""
-            e.control.update()
+            except ValueError:
+                e.control.value = ""
+                e.control.update()
 
     def preenche_data(self, e, atualiza_dados: bool = True):
+        """
+        Método genérico para os campos de data.
+        \n
+        Garante a formatação e que seja uma data válida.
+        \n
+        Atualiza os registros do browse caso o argumento 'atualiza_dados' seja True.
+        """
         somente_digitos = "".join(filter(str.isdigit, e.control.value))
 
         formatado = ""
@@ -425,16 +480,27 @@ class SolicitacaoHorasExtras:
         e.control.update()
 
     def on_change_digita_pagina(self, e):
+        """
+        Garante que o usuário só irá digitar números no campo página do controle de paginação do browse.
+        """
         if not e.control.value.isdigit():
             e.control.value = "".join(filter(str.isdigit, e.control.value))
 
         e.control.update()
 
     def on_change_motivo(self, e):
+        """
+        Método remove <enter> do motivo da necessidade de horas extras
+        """
         e.control.value = e.control.value.replace("\n", "")
         e.control.update()
 
     def enter_pagina_atual(self, e):
+        """
+        Método executado quando o usuário pressionar <enter> no campo de página atual no controle de paginação do browse.
+        \n
+        Valida se o número de página digitado é válido e executa o método da mudança de página dos registros.
+        """
         # Se valor digitado for inválido, atualiza o conteúdo com a página atual
         if (
             e.control.value == ""
@@ -448,11 +514,18 @@ class SolicitacaoHorasExtras:
             self.vai_para_pagina(int(e.control.value))
 
     def vai_para_pagina(self, pagina_destino: int):
+        """
+        Altera a página atual do browse de registros para a página enviada no argumento 'pagina_destino'
+        """
         self.pagina_atual_browse = pagina_destino
         self.campo_pagina_atual.value = str(pagina_destino)
         self.carrega_solicitacoes()
 
     def atualiza_barra_navegacao(self):
+        """
+        Método habilita ou desabilita os botões da barra de paginação de acordo com a página atual e
+        a quantidade de páginas.
+        """
         if not self.campo_pagina_atual.value == "":
             self.botao_primeira_pagina.disabled = not (
                 int(self.campo_pagina_atual.value) > 1
@@ -478,6 +551,9 @@ class SolicitacaoHorasExtras:
             self.page.update()
 
     def get_solicitacao_horas_extras(self):
+        """
+        Montagem e retorno da view com a tela de solicitações de horas extras
+        """
         conteudo_solicitacao = ft.Container(
             padding=0,
             border_radius=5,
@@ -590,6 +666,9 @@ class SolicitacaoHorasExtras:
         )
 
     def carrega_solicitacoes(self):
+        """
+        Método para recuperação dos dados de solicitações de horas extras da api.
+        """
         auth_session = AuthSession()
         pagina_destino = self.pagina_atual_browse if self.pagina_atual_browse > 0 else 1
         parametros_requisicao = {
@@ -721,6 +800,10 @@ class SolicitacaoHorasExtras:
                 ).exibir()
 
     def solicitar_liberacao(self, e):
+        """
+        Método altera o status da solicitação de liberação para 1=Aguardando aprovação.
+        """
+        # Não é necessário verificar o status atual, pois o botão só fica disponível quando o status é igual a "0"
         confirma_solicitar_liberacao = (
             Aviso(
                 self.page,
@@ -736,7 +819,12 @@ class SolicitacaoHorasExtras:
             if self.envia_alteracao_solicitacao(dados_solicitacao):
                 self.carrega_solicitacoes()
 
-    def envia_alteracao_solicitacao(self, dados_solicitacao) -> bool:
+    def envia_alteracao_solicitacao(self, dados_solicitacao: dict) -> bool:
+        """
+        Consome o PUT da API para realizar a persistência da alteração da solicitação de hora extra.
+        \n
+        Recebe os dados pelo argumento 'dados_solicitacao'.
+        """
         retorno_atualizacao = True
         auth_session = AuthSession()
         response_solicitacoes = requests.put(
@@ -759,6 +847,9 @@ class SolicitacaoHorasExtras:
         return retorno_atualizacao
 
     def clique_browse_solicitacoes(self, solicitacao: dict):
+        """
+        Atualiza o cartão de visualização da solicitação de hora extra a partir da linha clicada no browse.
+        """
         if not self.cartao_painel_edicao.visible:
             self.cartao_painel_visualizacao.visible = True
             self.coluna_painel_visualizacao.controls.clear()
@@ -897,6 +988,11 @@ class SolicitacaoHorasExtras:
             self.page.update()
 
     def apagar_solicitacao(self, e):
+        """
+        Consome o método DELETE da api para realizar a exclusão de uma solicitação de hora extra.
+        \n
+        Acionado pelo clique no botão posicionado em cada linha de solicitação.
+        """
         confirma_apagar_liberacao = (
             Aviso(
                 self.page,
@@ -931,6 +1027,11 @@ class SolicitacaoHorasExtras:
                     ).exibir()
 
     def editar_solicitacao(self, e):
+        """
+        Método para controlar a chamada para edição da solicitação de hora extra.
+        \n
+        Acionado pelo clique no botão posicionado em cada linha de solicitação.
+        """
         if self.cartao_painel_edicao.visible:
             Aviso(
                 self.page,
@@ -945,6 +1046,9 @@ class SolicitacaoHorasExtras:
             )
 
     def limpar_filtros(self):
+        """
+        Limpa os parâmetros de seleção de registros no browse e chama sua atualização.
+        """
         self.texto_data_de.value = ""
         self.texto_data_de.data = ""
         self.texto_data_ate.value = ""
@@ -954,6 +1058,11 @@ class SolicitacaoHorasExtras:
         self.carrega_solicitacoes()
 
     def interface_edicao_hora_extra(self, dados_solicitacao: dict = None):
+        """
+        Controla a abertura da tela de edição das solicitações de horas extras.
+        \n
+        Se o argumento 'dados_solicitacao' for enviado, é um processo de alteração. Caso contrário, trata-se de inclusão.
+        """
         if dados_solicitacao:
             self.titulo_painel_edicao.value = (
                 f"Dados da Solicitação Id: {dados_solicitacao['id']}"
