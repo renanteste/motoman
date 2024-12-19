@@ -35,6 +35,7 @@ class Aviso:
             ft.ElevatedButton(
                 text=option,
                 on_click=lambda e, i=i: self.opcao_selecionada(i),
+                autofocus=True,
             )
             for i, option in enumerate(self.actions)
         ]

@@ -8,7 +8,7 @@ class EmailConfiguration:
     # SMTP_PORT = 587
     # SMTP_AUTENTICACAO = True
 
-    ADDRESS = "token@motoman.com.br"
+    ADDRESS = "senha.portal.mrb@motoman.com.br"
     PASSWORD = "naofazdiferenca"
     SMTP_SERVER = "172.22.8.35"
     SMTP_PORT = 25
@@ -25,6 +25,7 @@ class ApiConfiguration:
     class rh:
         HOST = "0.0.0.0"
         PORT = 8000
+        SERVER = "127.0.0.1"
 
     class comercial:
         HOST = "0.0.0.0"

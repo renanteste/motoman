@@ -11,6 +11,7 @@ from src.mrb.common.lib import configura_log
 from src.mrb.common.config import ApiConfiguration, Environment
 from src.mrb.common.security.auth_service import auth_router
 from src.mrb.rh.api.solicitacao_horas_extras import solicitacao_horas_extras_router
+from src.mrb.common.lib.recupera_parametro_sx6 import recupera_parametro_sx6_router
 
 configura_log("api_rh")
 
@@ -25,6 +26,7 @@ app.add_middleware(
 app.mount("/images", StaticFiles(directory=Environment.IMAGES_PATH), name="images")
 app.include_router(auth_router)
 app.include_router(solicitacao_horas_extras_router)
+app.include_router(recupera_parametro_sx6_router)
 
 
 @app.exception_handler(Exception)
@@ -85,7 +87,14 @@ async def log_requests(request: Request, call_next):
         logging.info(f"Headers: {request.headers}")
 
         body = await request.body()
-        logging.info(f"Body: {body.decode('utf-8', errors='replace')}")
+        body_decoded = body.decode("utf-8", errors="replace")
+
+        if "password=" in body_decoded:
+            body_decoded = body_decoded.replace(
+                body_decoded.split("password=")[1].split("&")[0], "***"
+            )
+
+        logging.info(f"Body: {body_decoded}")
 
         response = await call_next(request)
         logging.info(f"Response status: {response.status_code}")

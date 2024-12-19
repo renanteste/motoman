@@ -3,7 +3,7 @@ import string
 import jwt
 import pytz
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import Select, and_, update
 from sqlalchemy.orm import Session, aliased
@@ -355,8 +355,11 @@ class AuthService:
 
 @auth_router.post("/auth")
 async def login_token(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
 ) -> AuthResponse:
+    agente_requisicao = request.headers.get("User-Agent", default="indefinido")
     resultado_autenticacao = AuthResponse()
     conta_usuario = form_data.username.lower()
     senha_informada = form_data.password
@@ -367,7 +370,11 @@ async def login_token(
         resultado_autenticacao.dados_autenticacao = auth_service.autenticacao
         resultado_autenticacao.dados_usuario = auth_service.dados_usuario
 
-    return resultado_autenticacao.model_dump(exclude={"dados_usuario": {"acessos"}})
+    return resultado_autenticacao.model_dump(
+        exclude=(
+            None if agente_requisicao == "PortalPy" else {"dados_usuario": {"acessos"}}
+        )
+    )
 
 
 def valida_token(token: str = Depends(oauth2_scheme)) -> dict:

@@ -11,6 +11,9 @@ def log_httpexception_raise(
     exc_info: bool = False,
     nivel_log: Literal[1, 2, 3] = 1,
 ):
+    """
+    Função registra a exceção no log e faz o raise com HTTPException.
+    """
     detail = mensagem
     if excecao:
         # Se enviado o objeto do exception, concatena ao detail para o HTTPException
