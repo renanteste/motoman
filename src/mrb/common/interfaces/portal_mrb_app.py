@@ -1,5 +1,6 @@
 import flet as ft
 
+from src.mrb.rh.interfaces.liberacao_horas_extras_view import LiberacaoHorasExtras
 from src.mrb.common.lib.aviso import Aviso
 from src.mrb.rh.interfaces.solicitacao_horas_extras_view import SolicitacaoHorasExtras
 from src.mrb.common.interfaces.botoes_menu_principal import BotoesMenuPrincipal
@@ -23,6 +24,11 @@ class PortalMrbApp:
             botoes_menu_principal=self.botoes_menu_principal,
         )
         self.menu_principal_view = MenuPrincipal(
+            navigation_bar=self.navigation_bar,
+            botoes_menu_principal=self.botoes_menu_principal,
+        )
+        self.liberacao_horas_extras = LiberacaoHorasExtras(
+            page=self.page,
             navigation_bar=self.navigation_bar,
             botoes_menu_principal=self.botoes_menu_principal,
         )
@@ -64,6 +70,13 @@ class PortalMrbApp:
             )
             self.solicitacao_horas_extras.carrega_solicitacoes()
 
+        elif self.page.route == "/aprova_he":
+            self.page.views.append(
+                self.liberacao_horas_extras.get_liberacao_horas_extras()
+            )
+            self.page.update()
+            self.liberacao_horas_extras.carrega_liberacoes()
+
         self.page.update()
 
     # Configurações para mudar a rota e voltar
@@ -75,7 +88,7 @@ class PortalMrbApp:
     def valida_acesso_rota(self, rota_destino: str) -> bool:
         acessar = True
 
-        if rota_destino == "/solicita_he":
+        if rota_destino == "/solicita_he" or rota_destino == "/aprova_he":
             # Usuário deve ter a matrícula
             if not self.auth_session.user_data.get(
                 "dados_cadastro_recursos"
@@ -89,6 +102,14 @@ class PortalMrbApp:
                 ).exibir()
                 acessar = False
 
+            if not self.auth_session.user_data.get("acessos"):
+                Aviso(
+                    self.page,
+                    content="Opções de acesso não definidas. Solicite acesso ao administrador do Portal!",
+                    actions=["Fechar"],
+                ).exibir()
+                acessar = False
+
             # Usuário deve ter acesso a rotina
             if (
                 acessar
@@ -98,7 +119,7 @@ class PortalMrbApp:
                 Aviso(
                     self.page,
                     content="Sem acesso à rotina 'SOLICITA_HE'. Solicite acesso ao administrador do Portal!",
-                    actions="Fechar",
+                    actions=["Fechar"],
                 ).exibir()
                 acessar = False
 

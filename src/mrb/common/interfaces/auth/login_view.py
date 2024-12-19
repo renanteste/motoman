@@ -89,9 +89,6 @@ class Login:
     def get_login_view(self):
         self.navigation_bar.descricao = "Login"
 
-        self.nome_usuario_input.value = "mm.colato@gmail.com"
-        self.senha_input.value = "Cc0l@t0O422320"
-
         login_control = ft.Container(
             expand=True,
             alignment=ft.alignment.center,

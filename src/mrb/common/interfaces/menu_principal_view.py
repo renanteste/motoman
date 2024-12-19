@@ -5,7 +5,6 @@ from src.mrb.common.interfaces.botoes_menu_principal import BotoesMenuPrincipal
 from src.mrb.common.interfaces.navigation_bar import NavigationBar
 from src.mrb.common.schemas.schema_auth_service import DadosUsuario
 from src.mrb.common.config import ApiConfiguration, Environment
-from src.mrb.common.lib.view_ft_azul import ViewFtAzul
 
 
 class MenuPrincipal:

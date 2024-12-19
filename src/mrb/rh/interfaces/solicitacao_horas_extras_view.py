@@ -1,8 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
 import flet as ft
-import requests
 
+from src.mrb.common.interfaces.preenche_data import preenche_data
+from src.mrb.rh.interfaces.comunica_api_horas_extras import ComunicaApiHorasExtras
+from src.mrb.rh.interfaces.periodo_apontamento import PeriodoApontamento
 from src.mrb.common.lib.iso_to_date import iso_to_date
 from src.mrb.common.lib.aviso import Aviso
 from src.mrb.common.config import ApiConfiguration
@@ -29,6 +31,7 @@ class SolicitacaoHorasExtras:
         self.page = page
         self.navigation_bar = navigation_bar
         self.botoes_menu_principal = botoes_menu_principal
+        self.periodo_apontamento = PeriodoApontamento()
 
         # Componentes da paginação
         self.pagina_atual_browse = 0
@@ -82,7 +85,9 @@ class SolicitacaoHorasExtras:
         )
         self.texto_data_de = ft.TextField(
             dense=True,
-            on_change=lambda e: self.preenche_data(e),
+            on_change=lambda e: preenche_data(
+                evento=e, se_data_valida=self.carrega_solicitacoes
+            ),
             width=120,
             hint_text="  /  /    ",
             data="",
@@ -90,7 +95,9 @@ class SolicitacaoHorasExtras:
         )
         self.texto_data_ate = ft.TextField(
             dense=True,
-            on_change=lambda e: self.preenche_data(e),
+            on_change=lambda e: preenche_data(
+                evento=e, se_data_valida=self.carrega_solicitacoes
+            ),
             width=120,
             hint_text="  /  /    ",
             data="",
@@ -132,7 +139,7 @@ class SolicitacaoHorasExtras:
         )
 
         # Componentes do painel lateral direito
-        self.coluna_painel_visualizacao = ft.Column()
+        self.coluna_painel_visualizacao = ft.Column(scroll=ft.ScrollMode.ADAPTIVE)
         self.cartao_painel_visualizacao = ft.Card(
             elevation=1.5,
             animate_scale=200,
@@ -151,22 +158,24 @@ class SolicitacaoHorasExtras:
         )
         self.campo_data_planejada = ft.TextField(
             dense=True,
-            on_change=lambda e: self.preenche_data(e, atualiza_dados=False),
+            on_change=lambda e: preenche_data(evento=e),
             width=120,
             hint_text="  /  /    ",
             data="",
             bgcolor=ft.colors.WHITE,
             on_blur=lambda e: self.on_blur_data_planejada(e),
+            text_size=14,
         )
         self.campo_quantidade_horas = ft.TextField(
             dense=True,
             on_change=lambda e: self.preenche_horas(e),
-            width=120,
+            width=80,
             hint_text="0,00",
             data="",
             bgcolor=ft.colors.WHITE,
             tooltip="Digitar o total de horas decimais planejadas. Ex.: 2h 30m = 2,50h.",
             text_align=ft.TextAlign.RIGHT,
+            text_size=14,
         )
         self.campo_motivo = ft.TextField(
             dense=True,
@@ -176,9 +185,12 @@ class SolicitacaoHorasExtras:
             max_length=250,
             multiline=True,
             on_change=lambda e: self.on_change_motivo(e),
+            text_size=14,
+            max_lines=3,
         )
         self.matricula_painel_edicao = ft.Text("")
         self.coluna_painel_edicao = ft.Column(
+            scroll=ft.ScrollMode.ADAPTIVE,
             controls=[
                 ft.Row(
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -203,11 +215,11 @@ class SolicitacaoHorasExtras:
                 ft.Row(
                     controls=[
                         ft.Text(
-                            "Quantidade de Horas Planejadas:",
+                            "Qtd. Horas Planejadas:",
                             theme_style=ft.TextThemeStyle.LABEL_LARGE,
                         ),
                         self.campo_quantidade_horas,
-                    ]
+                    ],
                 ),
                 ft.Row(
                     controls=[
@@ -237,7 +249,37 @@ class SolicitacaoHorasExtras:
                         ),
                     ],
                 ),
-            ]
+            ],
+        )
+        self.texto_periodo_em_vigor = ft.Text("De   /  /     a   /  /    ")
+        self.cartao_periodo_apontamento = ft.Card(
+            elevation=1.5,
+            animate_scale=200,
+            surface_tint_color=ft.colors.INVERSE_PRIMARY,
+            content=ft.Container(
+                padding=10,
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            controls=[
+                                ft.Text(
+                                    "Período de Apontamento em Vigor",
+                                    text_align=ft.TextAlign.CENTER,
+                                    expand=True,
+                                    theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
+                                ),
+                            ],
+                        ),
+                        ft.Row(
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            controls=[
+                                self.texto_periodo_em_vigor,
+                            ],
+                        ),
+                    ]
+                ),
+            ),
         )
         self.cartao_painel_edicao = ft.Card(
             elevation=1.5,
@@ -256,8 +298,8 @@ class SolicitacaoHorasExtras:
         self.cartao_painel_edicao.visible = not self.cartao_painel_edicao.visible
         self.cartao_painel_visualizacao.visible = (
             not self.cartao_painel_visualizacao.visible
-        )
-        self.botao_nova_solicitacao.disabled = not self.botao_nova_solicitacao.disabled
+        ) and len(self.browse_solicitacoes.rows) > 0
+        self.botao_nova_solicitacao.disabled = self.cartao_painel_edicao.visible
         self.page.update()
 
     def limpa_campos_edicao(self):
@@ -340,13 +382,14 @@ class SolicitacaoHorasExtras:
             )
             solicitacao_horas_extras["status_aprovacao"] = "0"
 
+            comunica_api_horas_extras = ComunicaApiHorasExtras(page=self.page)
             if dados_solicitacao:
-                retorno_envio = self.envia_alteracao_solicitacao(
+                retorno_envio = comunica_api_horas_extras.envia_alteracao_solicitacao(
                     solicitacao_horas_extras
                 )
 
             else:
-                retorno_envio = self.envia_inclusao_solicitacao(
+                retorno_envio = comunica_api_horas_extras.envia_inclusao_solicitacao(
                     solicitacao_horas_extras
                 )
 
@@ -354,45 +397,6 @@ class SolicitacaoHorasExtras:
                 self.habilitar_desabilitar_edicao()
                 self.limpa_campos_edicao()
                 self.carrega_solicitacoes()
-
-    def envia_inclusao_solicitacao(self, solicitacao_horas_extras: dict) -> bool:
-        """
-        Faz o request da API para inclusão dos dados (post) e trata o retorno obtido.
-        \n
-        Retorna True se a transação foi bem sucedida.
-        """
-        auth_session = AuthSession()
-        retorno_envio = False
-
-        response_solicitacoes = requests.post(
-            headers={"Authorization": f"Bearer {auth_session.token}"},
-            url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/solicitacao_horas_extras",
-            json=solicitacao_horas_extras,
-        )
-
-        if response_solicitacoes.status_code == 200:
-            retorno_envio = True
-            dados_retornados = response_solicitacoes.json()
-            Aviso(
-                self.page,
-                content=f"Salva com id {dados_retornados[0]['id']}!",
-                title="Sucesso",
-                actions=["Ok"],
-            ).exibir()
-
-        else:
-            if response_solicitacoes.status_code == 401:
-                self.page.go("/logout")
-
-            else:
-                Aviso(
-                    self.page,
-                    content=f"Falha na requisição de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
-                    title="Requisição de Solicitações",
-                    actions=["Fechar"],
-                ).exibir()
-
-        return retorno_envio
 
     def preenche_horas(self, e):
         """
@@ -438,46 +442,6 @@ class SolicitacaoHorasExtras:
             except ValueError:
                 e.control.value = ""
                 e.control.update()
-
-    def preenche_data(self, e, atualiza_dados: bool = True):
-        """
-        Método genérico para os campos de data.
-        \n
-        Garante a formatação e que seja uma data válida.
-        \n
-        Atualiza os registros do browse caso o argumento 'atualiza_dados' seja True.
-        """
-        somente_digitos = "".join(filter(str.isdigit, e.control.value))
-
-        formatado = ""
-        if len(somente_digitos) > 0:
-            formatado += somente_digitos[:2]
-        if len(somente_digitos) > 2:
-            formatado += "/" + somente_digitos[2:4]
-        if len(somente_digitos) > 4:
-            formatado += "/" + somente_digitos[4:8]
-        if len(somente_digitos) == 8:
-            try:
-                datetime.strptime(e.control.value, "%d/%m/%Y")
-
-            except ValueError:
-                Aviso(
-                    self.page, content="A data digitada é inválida!", actions=["Ok"]
-                ).exibir()
-                formatado = e.control.data
-
-        # Se a data formatada é vazia ou tem tamanho igual a 10 e é diferente da anterior, executa o filtro
-        if (
-            len(formatado) == 0 or len(formatado) == 10
-        ) and not formatado == e.control.data:
-            e.control.data = formatado
-
-            if atualiza_dados:
-                self.carrega_solicitacoes()
-
-        e.control.value = formatado
-
-        e.control.update()
 
     def on_change_digita_pagina(self, e):
         """
@@ -550,7 +514,7 @@ class SolicitacaoHorasExtras:
             )
             self.page.update()
 
-    def get_solicitacao_horas_extras(self):
+    def get_solicitacao_horas_extras(self) -> ft.View:
         """
         Montagem e retorno da view com a tela de solicitações de horas extras
         """
@@ -628,8 +592,9 @@ class SolicitacaoHorasExtras:
                                         expand=True,
                                         controls=[
                                             ft.Column(
-                                                horizontal_alignment="center",
+                                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                                                 controls=[
+                                                    self.cartao_periodo_apontamento,
                                                     self.cartao_painel_visualizacao,
                                                     self.cartao_painel_edicao,
                                                 ],
@@ -689,19 +654,18 @@ class SolicitacaoHorasExtras:
                 self.texto_data_ate.data, "%d/%m/%Y"
             )
 
-        response_solicitacoes = requests.get(
-            headers={"Authorization": f"Bearer {auth_session.token}"},
-            url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/solicitacao_horas_extras",
-            params=parametros_requisicao,
+        comunica_api_horas_extras = ComunicaApiHorasExtras(self.page)
+        retorno_solicitacoes = comunica_api_horas_extras.recupera_solicitacoes(
+            parametros_requisicao=parametros_requisicao,
+            end_point="solicitacao_horas_extras",
         )
 
-        if response_solicitacoes.status_code == 200:
+        if retorno_solicitacoes:
             if len(parametros_requisicao) > 2:
                 self.botao_limpa_filtros.disabled = False
 
             self.cartao_painel_visualizacao.visible = False
             self.browse_solicitacoes.rows.clear()
-            retorno_solicitacoes = response_solicitacoes.json()
             # Se o total de páginas resultado for menor que a página atual, muda a página para 1 e repete a requisição
             if (
                 retorno_solicitacoes["total_de_paginas"] < pagina_destino
@@ -785,19 +749,23 @@ class SolicitacaoHorasExtras:
                 )
 
             self.atualiza_barra_navegacao()
+            self.atualiza_periodo_apontamento()
             self.page.update()
 
-        else:
-            if response_solicitacoes.status_code == 401:
-                self.page.go("/logout")
+    def atualiza_periodo_apontamento(self):
+        self.periodo_apontamento.obtem_periodo_apontamento()
+        if self.periodo_apontamento.erro_requisicao:
+            self.texto_periodo_em_vigor.value = self.periodo_apontamento.erro_requisicao
 
-            else:
-                Aviso(
-                    self.page,
-                    content=f"Falha na requisição de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
-                    title="Requisição de Solicitações",
-                    actions=["Fechar"],
-                ).exibir()
+        else:
+            self.texto_periodo_em_vigor.value = (
+                "De "
+                + self.periodo_apontamento.inicio_periodo.strftime("%d/%m/%Y")
+                + " a "
+                + self.periodo_apontamento.final_periodo.strftime("%d/%m/%Y")
+            )
+
+        self.texto_periodo_em_vigor.update()
 
     def solicitar_liberacao(self, e):
         """
@@ -814,37 +782,11 @@ class SolicitacaoHorasExtras:
             == 0
         )
         if confirma_solicitar_liberacao:
+            comunica_api_horas_extras = ComunicaApiHorasExtras(self.page)
             dados_solicitacao = self.browse_solicitacoes.rows[e.control.data[1]].data
             dados_solicitacao["status_aprovacao"] = "1"
-            if self.envia_alteracao_solicitacao(dados_solicitacao):
+            if comunica_api_horas_extras.envia_alteracao_solicitacao(dados_solicitacao):
                 self.carrega_solicitacoes()
-
-    def envia_alteracao_solicitacao(self, dados_solicitacao: dict) -> bool:
-        """
-        Consome o PUT da API para realizar a persistência da alteração da solicitação de hora extra.
-        \n
-        Recebe os dados pelo argumento 'dados_solicitacao'.
-        """
-        retorno_atualizacao = True
-        auth_session = AuthSession()
-        response_solicitacoes = requests.put(
-            headers={"Authorization": f"Bearer {auth_session.token}"},
-            url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/solicitacao_horas_extras",
-            json=dados_solicitacao,
-        )
-        if not response_solicitacoes.status_code == 200:
-            if response_solicitacoes.status_code == 401:
-                self.page.go("/logout")
-
-            else:
-                Aviso(
-                    self.page,
-                    content=f"Falha na atualização de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
-                    title="Alteração de Solicitação",
-                    actions=["Fechar"],
-                ).exibir()
-                retorno_atualizacao = False
-        return retorno_atualizacao
 
     def clique_browse_solicitacoes(self, solicitacao: dict):
         """
@@ -898,7 +840,7 @@ class SolicitacaoHorasExtras:
                     spacing=20,
                     controls=[
                         ft.Text(
-                            "Quantidade de Horas Planejadas: ",
+                            "Qtd. Horas Planejadas: ",
                             theme_style=ft.TextThemeStyle.LABEL_LARGE,
                         ),
                         ft.Text(solicitacao["total_horas_planejada"]),
@@ -988,43 +930,9 @@ class SolicitacaoHorasExtras:
             self.page.update()
 
     def apagar_solicitacao(self, e):
-        """
-        Consome o método DELETE da api para realizar a exclusão de uma solicitação de hora extra.
-        \n
-        Acionado pelo clique no botão posicionado em cada linha de solicitação.
-        """
-        confirma_apagar_liberacao = (
-            Aviso(
-                self.page,
-                content=f"Confirma excluir a Solicitação de Hora Extra Id {e.control.data}?\n\nEsta operação não poderá ser desfeita!",
-                title="Exclusão de Solicitação",
-                actions=["Sim", "Não"],
-            ).exibir()
-            == 0
-        )
-        if confirma_apagar_liberacao:
-            auth_session = AuthSession()
-            response_solicitacoes = requests.delete(
-                headers={"Authorization": f"Bearer {auth_session.token}"},
-                url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/solicitacao_horas_extras/{e.control.data}",
-            )
-            if (
-                response_solicitacoes.status_code == 204
-                or response_solicitacoes.status_code == 200
-            ):
-                self.carrega_solicitacoes()
-
-            else:
-                if response_solicitacoes.status_code == 401:
-                    self.page.go("/logout")
-
-                else:
-                    Aviso(
-                        self.page,
-                        content=f"Falha na exclusão de dados da api: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
-                        title="Alteração de Solicitação",
-                        actions=["Fechar"],
-                    ).exibir()
+        comunica_api_horas_extras = ComunicaApiHorasExtras(self.page)
+        if comunica_api_horas_extras.apagar_solicitacao(id_solicitacao=e.control.data):
+            self.carrega_solicitacoes()
 
     def editar_solicitacao(self, e):
         """

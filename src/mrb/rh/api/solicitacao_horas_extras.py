@@ -13,9 +13,11 @@ from sqlalchemy import (
     or_,
     update,
 )
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.mrb.rh.models.model_funcionarios_sra import funcionarios_sra
+from src.mrb.rh.schemas.schema_liberacao_horas_extras import ListaLiberacaoHorasExtras
 from src.mrb.common.lib.log_httpexception_raise import log_httpexception_raise
 from src.mrb.common.database.db_engine import get_db
 from src.mrb.common.security.auth_service import AuthService, valida_token
@@ -254,6 +256,114 @@ class SolitacaoHorasExtras:
                 excecao=e,
             )
 
+    def recupera_liberacoes(
+        self,
+        matricula_aprovador: str,
+        pagina: int,
+        registros: int,
+        status_aprovacao: str,
+        data_de: date,
+        data_ate: date,
+    ):
+        try:
+            sra = aliased(funcionarios_sra, name="sra")
+
+            # Condição para seleção dos registros
+            condicao = []
+            condicao.append(sra.c.D_E_L_E_T_ == " ")
+            condicao.append(sra.c.RA_FILIAL == "01")
+            condicao.append(sra.c.RA_MAT >= " ")
+            condicao.append(sra.c.RA_XLIDER == matricula_aprovador)
+            condicao.append(sra.c.RA_DEMISSA == " ")
+
+            if status_aprovacao:
+                condicao.append(
+                    SolicitacoesHorasExtras.status_aprovacao == status_aprovacao
+                )
+
+            if data_de:
+                condicao.append(
+                    cast(SolicitacoesHorasExtras.data_planejada, DATE) >= data_de
+                )
+
+            if data_ate:
+                condicao.append(
+                    cast(SolicitacoesHorasExtras.data_planejada, DATE) <= data_ate
+                )
+
+            # Recupera o total de registros de acordo com as condições de filtro
+            query = (
+                Select(func.count())
+                .select_from(sra)
+                .join(
+                    SolicitacoesHorasExtras,
+                    SolicitacoesHorasExtras.matricula == sra.c.RA_MAT,
+                )
+                .where(and_(*condicao))
+            )
+
+            retorno = {}
+            retorno["total_de_registros"] = self.db.execute(query).scalar_one()
+
+            # Recupera os registros conforme as condições com controle de paginação
+            query = (
+                Select(sra.c.RA_NOME.label("nome"), SolicitacoesHorasExtras)
+                .join(
+                    SolicitacoesHorasExtras,
+                    SolicitacoesHorasExtras.matricula == sra.c.RA_MAT,
+                )
+                .where(and_(*condicao))
+                .order_by(SolicitacoesHorasExtras.matricula, SolicitacoesHorasExtras.id)
+                .offset((pagina - 1) * registros)
+                .limit(registros)
+            )
+
+            resultado = self.db.execute(query).fetchall()
+            if resultado:
+                retorno["pagina"] = pagina
+
+            retorno["registros_por_pagina"] = registros
+            retorno["total_de_paginas"] = (
+                retorno["total_de_registros"] // registros
+            ) + (
+                1
+                if not retorno["total_de_registros"] // registros
+                == retorno["total_de_registros"] / registros
+                else 0
+            )
+
+            retorno["liberacoes_horas_extras"] = []
+            colunas = [
+                column.name for column in inspect(SolicitacoesHorasExtras).columns
+            ]
+            for linha in resultado:
+                registro = {coluna: getattr(linha[1], coluna) for coluna in colunas}
+                registro["nome"] = linha[0]
+                retorno["liberacoes_horas_extras"].append(registro)
+
+        except HTTPException:
+            raise
+
+        except SQLAlchemyError as e:
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Erro ao recuperar registros no banco de dados",
+                exc_info=True,
+                nivel_log=1,
+                excecao=e,
+            )
+
+        except Exception as e:
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Erro inesperado",
+                exc_info=True,
+                nivel_log=1,
+                excecao=e,
+            )
+
+        return retorno
+
     def listar(
         self,
         matricula: str,
@@ -458,6 +568,29 @@ def apaga_solicitacao_horas_extras(
     # Instancia a classe para excluir os registros
     solicitacao_horas_extras = SolitacaoHorasExtras(db)
     solicitacao_horas_extras.excluir(id)
+
+
+@solicitacao_horas_extras_router.get("/liberacao_horas_extras")
+def lista_liberacao_horas_extras(
+    payload: dict = Depends(valida_token),
+    db: Session = Depends(get_db),
+    matricula_aprovador: Union[str, None] = None,
+    pagina: Union[int, None] = 1,
+    registros: Union[int, None] = 10,
+    status_aprovacao: Union[str, None] = None,
+    data_de: Union[date, None] = None,
+    data_ate: Union[date, None] = None,
+) -> ListaLiberacaoHorasExtras:
+    # Validar se tem acesso pelo token
+    if not valida_acesso_endpoint(db, payload):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+        )
+    # Instancia a classe para retornar os dados
+    solicitacao_horas_extras = SolitacaoHorasExtras(db)
+    return solicitacao_horas_extras.recupera_liberacoes(
+        matricula_aprovador, pagina, registros, status_aprovacao, data_de, data_ate
+    )
 
 
 @solicitacao_horas_extras_router.get("/solicitacao_horas_extras")
