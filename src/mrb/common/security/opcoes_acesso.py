@@ -1,0 +1,42 @@
+from fastapi import APIRouter, HTTPException, status
+import flet as ft
+
+from src.mrb.common.schemas.opcoes_portal import OpcaoPortal
+
+OPCOES_MENU_PRINCIPAL = [
+    {
+        "codigo_rotina": "SOLICITA_HE",
+        "descricao_menu": "Solicitações Horas Extras",
+        "modulo": "RH",
+        "url_view": "/solicita_he",
+        "icone": ft.icons.ADD_ALARM_OUTLINED,
+        "icone_selecionado": ft.icons.ADD_ALARM,
+    },
+    {
+        "codigo_rotina": "APROVA_HE",
+        "descricao_menu": "Aprovação Horas Extras",
+        "modulo": "RH",
+        "url_view": "/aprova_he",
+        "icone": ft.icons.ACCESS_ALARM_OUTLINED,
+        "icone_selecionado": ft.icons.ACCESS_ALARM,
+    },
+]
+
+lista_opcoes_portal_router = APIRouter()
+
+
+@lista_opcoes_portal_router.get(
+    "/lista_opcoes_portal", response_model=list[OpcaoPortal]
+)
+def lista_opcoes_portal() -> list[OpcaoPortal]:
+    """
+    Função atua como endpoint que retorna as opções de menu do portal.
+    """
+    try:
+        return [OpcaoPortal(**opcao) for opcao in OPCOES_MENU_PRINCIPAL]
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=[f"Erro ao retornar opções de menu: {e}"],
+        )

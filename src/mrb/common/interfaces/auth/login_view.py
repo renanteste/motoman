@@ -17,6 +17,7 @@ class Login:
             prefix_icon=ft.icons.PERSON_2_OUTLINED,
             expand=True,
             autofocus=True,
+            on_blur=lambda e: self.completa_email(e),
         )
         self.senha_input = ft.TextField(
             label="Senha",
@@ -151,3 +152,10 @@ class Login:
             vertical_alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
+
+    def completa_email(self, e):
+        campo_usuario: ft.TextField = e.control
+
+        if not campo_usuario.value.strip() == "" and not "@" in campo_usuario.value:
+            campo_usuario.value += "@motoman.com.br"
+            campo_usuario.update()

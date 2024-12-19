@@ -12,6 +12,7 @@ from src.mrb.common.config import ApiConfiguration, Environment
 from src.mrb.common.security.auth_service import auth_router
 from src.mrb.rh.api.solicitacao_horas_extras import solicitacao_horas_extras_router
 from src.mrb.common.lib.recupera_parametro_sx6 import recupera_parametro_sx6_router
+from src.mrb.common.routers_compartilhados import routers_compartilhados
 
 configura_log("api_rh")
 
@@ -27,6 +28,7 @@ app.mount("/images", StaticFiles(directory=Environment.IMAGES_PATH), name="image
 app.include_router(auth_router)
 app.include_router(solicitacao_horas_extras_router)
 app.include_router(recupera_parametro_sx6_router)
+app.include_router(routers_compartilhados)
 
 
 @app.exception_handler(Exception)

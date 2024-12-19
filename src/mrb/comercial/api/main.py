@@ -6,12 +6,9 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from src.mrb.common.lib import configura_log
 from src.mrb.common.config import ApiConfiguration
 from src.mrb.common.security.auth_service import auth_router
-from src.mrb.common.security.criptografia import (
-    criptografia_router,
-    descriptografia_router,
-)
 from src.mrb.comercial.api.prospect_app import prospect_router
 from src.mrb.comercial.api.call_report_app import call_report_router
+from src.mrb.common.routers_compartilhados import routers_compartilhados
 
 configura_log("api_comercial")
 
@@ -19,8 +16,7 @@ app = FastAPI()
 app.include_router(prospect_router)
 app.include_router(call_report_router)
 app.include_router(auth_router)
-app.include_router(criptografia_router)
-app.include_router(descriptografia_router)
+app.include_router(routers_compartilhados)
 
 
 @app.exception_handler(RequestValidationError)

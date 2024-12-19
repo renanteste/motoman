@@ -1,23 +1,6 @@
 import flet as ft
 
-OPCOES_MENU_PRINCIPAL = [
-    {
-        "codigo_rotina": "SOLICITA_HE",
-        "descricao_menu": "Solicitações Horas Extras",
-        "modulo": "RH",
-        "url_view": "solicita_he",
-        "icone": ft.icons.ADD_ALARM_OUTLINED,
-        "icone_selecionado": ft.icons.ADD_ALARM,
-    },
-    {
-        "codigo_rotina": "APROVA_HE",
-        "descricao_menu": "Aprovação Horas Extras",
-        "modulo": "RH",
-        "url_view": "aprova_he",
-        "icone": ft.icons.ACCESS_ALARM_OUTLINED,
-        "icone_selecionado": ft.icons.ACCESS_ALARM,
-    },
-]
+from src.mrb.common.security.opcoes_acesso import OPCOES_MENU_PRINCIPAL
 
 
 class BotoesMenuPrincipal:
@@ -57,7 +40,7 @@ class BotoesMenuPrincipal:
             self.page.go("/menu_principal")
         else:
             opcao_selecionada -= 1
-            self.page.go(f"/{OPCOES_MENU_PRINCIPAL[opcao_selecionada]['url_view']}")
+            self.page.go(OPCOES_MENU_PRINCIPAL[opcao_selecionada]["url_view"])
 
     def mostrar_ocultar_descrição(self, e):
         self.navigation_rail.extended = not self.navigation_rail.extended

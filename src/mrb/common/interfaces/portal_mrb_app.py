@@ -1,5 +1,6 @@
 import flet as ft
 
+from src.mrb.common.security.opcoes_acesso import OPCOES_MENU_PRINCIPAL
 from src.mrb.rh.interfaces.liberacao_horas_extras_view import LiberacaoHorasExtras
 from src.mrb.common.lib.aviso import Aviso
 from src.mrb.rh.interfaces.solicitacao_horas_extras_view import SolicitacaoHorasExtras
@@ -87,40 +88,38 @@ class PortalMrbApp:
 
     def valida_acesso_rota(self, rota_destino: str) -> bool:
         acessar = True
+        codigo_rotina = None
+        print(f"Rota destino {rota_destino}")
 
-        if rota_destino == "/solicita_he" or rota_destino == "/aprova_he":
-            # Usuário deve ter a matrícula
-            if not self.auth_session.user_data.get(
-                "dados_cadastro_recursos"
-            ) or not self.auth_session.user_data.get("dados_cadastro_recursos").get(
-                "matricula"
-            ):
-                Aviso(
-                    self.page,
-                    content="Função acessível apenas para funcionários",
-                    actions=["Fechar"],
-                ).exibir()
-                acessar = False
+        # Sempre permite acesso à tela principal e tela de login
+        if rota_destino in ["/menu_principal", "/login", "/logout"]:
+            return acessar
 
-            if not self.auth_session.user_data.get("acessos"):
-                Aviso(
-                    self.page,
-                    content="Opções de acesso não definidas. Solicite acesso ao administrador do Portal!",
-                    actions=["Fechar"],
-                ).exibir()
-                acessar = False
+        # Obtém o código da rotina pela rota
+        for opcao in OPCOES_MENU_PRINCIPAL:
+            if opcao["url_view"] == rota_destino:
+                codigo_rotina = opcao["codigo_rotina"]
 
-            # Usuário deve ter acesso a rotina
-            if (
-                acessar
-                and not "SOLICITA_HE"
-                in self.auth_session.user_data["acessos"]["lista_acesso"]
-            ):
-                Aviso(
-                    self.page,
-                    content="Sem acesso à rotina 'SOLICITA_HE'. Solicite acesso ao administrador do Portal!",
-                    actions=["Fechar"],
-                ).exibir()
-                acessar = False
+        # Se não tem código de rotina, não disponibiliza o acesso
+        if not codigo_rotina:
+            acessar = False
+            Aviso(
+                self.page,
+                content=f"Rota '{rota_destino}' sem opção de tela definida! Contate o suporte!",
+                actions=["Fechar"],
+            ).exibir()
+
+        # Usuário deve ter acesso a rotina
+        if (
+            acessar
+            and not codigo_rotina
+            in self.auth_session.user_data["acessos"]["lista_acesso"]
+        ):
+            Aviso(
+                self.page,
+                content="Sem acesso à rotina 'SOLICITA_HE'. Solicite acesso ao administrador do Portal!",
+                actions=["Fechar"],
+            ).exibir()
+            acessar = False
 
         return acessar
