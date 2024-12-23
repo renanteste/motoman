@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+from src.mrb.common.database.atualiza_tabelas import atualiza_tabelas
 from src.mrb.common.lib import configura_log
 from src.mrb.common.config import ApiConfiguration, Environment
 from src.mrb.common.security.auth_service import auth_router
@@ -14,9 +15,22 @@ from src.mrb.rh.api.solicitacao_horas_extras import solicitacao_horas_extras_rou
 from src.mrb.common.lib.recupera_parametro_sx6 import recupera_parametro_sx6_router
 from src.mrb.common.routers_compartilhados import routers_compartilhados
 
+
+async def life_span(app: FastAPI):
+    try:
+        atualiza_tabelas()
+
+    except Exception as e:
+        logging.error(f"Erro ao verificar ou criar tabelas: {e}")
+
+    yield
+
+    logging.info("Encerrando a aplicação...")
+
+
 configura_log("api_rh")
 
-app = FastAPI()
+app = FastAPI(lifespan=life_span)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
