@@ -1,5 +1,6 @@
 import flet as ft
 
+from src.mrb.common.interfaces.auth.auth_session import AuthSession
 from src.mrb.common.security.opcoes_acesso import OPCOES_MENU_PRINCIPAL
 
 
@@ -54,18 +55,26 @@ class BotoesMenuPrincipal:
                 label="Home",
             )
         ]
+        auth_session = AuthSession()
 
-        for opcao in OPCOES_MENU_PRINCIPAL:
-            opcoes_menu_pricipal.append(
-                ft.NavigationRailDestination(
-                    icon_content=ft.Icon(
-                        opcao["icone"], tooltip=opcao["descricao_menu"]
-                    ),
-                    selected_icon_content=ft.Icon(
-                        opcao["icone_selecionado"], tooltip=opcao["descricao_menu"]
-                    ),
-                    label=opcao["descricao_menu"],
-                )
-            )
+        if auth_session.user_data:
+            for opcao in OPCOES_MENU_PRINCIPAL:
+                if (
+                    opcao["disponivel_menu"]
+                    and opcao["codigo_rotina"]
+                    in auth_session.user_data["acessos"]["lista_acesso"]
+                ):
+                    opcoes_menu_pricipal.append(
+                        ft.NavigationRailDestination(
+                            icon_content=ft.Icon(
+                                opcao["icone"], tooltip=opcao["descricao_menu"]
+                            ),
+                            selected_icon_content=ft.Icon(
+                                opcao["icone_selecionado"],
+                                tooltip=opcao["descricao_menu"],
+                            ),
+                            label=opcao["descricao_menu"],
+                        )
+                    )
 
         return opcoes_menu_pricipal

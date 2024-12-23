@@ -55,6 +55,9 @@ class PortalMrbApp:
                 self.page.views.append(self.login_view.get_login_view())
 
         elif self.page.route == "/menu_principal":
+            self.botoes_menu_principal.navigation_rail.destinations = (
+                self.botoes_menu_principal.get_opcoes_menu_principal()
+            )
             self.page.views.append(
                 self.menu_principal_view.get_menu_principal_view(
                     nome_usuario=self.auth_session.user_data["nome_usuario"]
@@ -89,7 +92,6 @@ class PortalMrbApp:
     def valida_acesso_rota(self, rota_destino: str) -> bool:
         acessar = True
         codigo_rotina = None
-        print(f"Rota destino {rota_destino}")
 
         # Sempre permite acesso à tela principal e tela de login
         if rota_destino in ["/menu_principal", "/login", "/logout"]:

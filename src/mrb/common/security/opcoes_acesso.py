@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 import flet as ft
 
-from src.mrb.common.schemas.opcoes_portal import OpcaoPortal
+from src.mrb.common.schemas.schema_opcoes_portal import OpcaoPortal
 
 OPCOES_MENU_PRINCIPAL = [
     {
@@ -11,6 +11,7 @@ OPCOES_MENU_PRINCIPAL = [
         "url_view": "/solicita_he",
         "icone": ft.icons.ADD_ALARM_OUTLINED,
         "icone_selecionado": ft.icons.ADD_ALARM,
+        "disponivel_menu": True,
     },
     {
         "codigo_rotina": "APROVA_HE",
@@ -19,6 +20,25 @@ OPCOES_MENU_PRINCIPAL = [
         "url_view": "/aprova_he",
         "icone": ft.icons.ACCESS_ALARM_OUTLINED,
         "icone_selecionado": ft.icons.ACCESS_ALARM,
+        "disponivel_menu": True,
+    },
+    {
+        "codigo_rotina": "CALL_REPORT_APP",
+        "descricao_menu": "Api para inclusão de Call Reports",
+        "modulo": "Comercial",
+        "url_view": None,
+        "icone": None,
+        "icone_selecionado": None,
+        "disponivel_menu": False,
+    },
+    {
+        "codigo_rotina": "PROSPECT_APP",
+        "descricao_menu": "Api para inclusão de Prospects",
+        "modulo": "Comercial",
+        "url_view": None,
+        "icone": None,
+        "icone_selecionado": None,
+        "disponivel_menu": False,
     },
 ]
 
