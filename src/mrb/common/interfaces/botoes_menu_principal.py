@@ -21,7 +21,7 @@ class BotoesMenuPrincipal:
             min_extended_width=160,
             bgcolor="transparent",
             leading=ft.IconButton(
-                icon=ft.icons.SWAP_HORIZ_ROUNDED,
+                icon=ft.Icons.SWAP_HORIZ_ROUNDED,
                 icon_size=40,
                 tooltip="Mostrar/Ocultar Descrição",
                 on_click=lambda e: self.mostrar_ocultar_descrição(e=e),
@@ -50,8 +50,8 @@ class BotoesMenuPrincipal:
     def get_opcoes_menu_principal(self) -> list[ft.NavigationRailDestination]:
         opcoes_menu_pricipal = [
             ft.NavigationRailDestination(
-                icon_content=ft.Icon(ft.icons.COTTAGE_OUTLINED, tooltip="Home"),
-                selected_icon=ft.Icon(ft.icons.COTTAGE, tooltip="Home"),
+                icon_content=ft.Icon(ft.Icons.COTTAGE_OUTLINED, tooltip="Home"),
+                selected_icon=ft.Icon(ft.Icons.COTTAGE, tooltip="Home"),
                 label="Home",
             )
         ]

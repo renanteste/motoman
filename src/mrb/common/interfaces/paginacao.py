@@ -16,13 +16,13 @@ class Paginacao:
 
         # Componentes de navegação
         self.botao_primeira_pagina = ft.IconButton(
-            icon=ft.icons.KEYBOARD_DOUBLE_ARROW_LEFT_OUTLINED,
+            icon=ft.Icons.KEYBOARD_DOUBLE_ARROW_LEFT_OUTLINED,
             disabled=True,
             tooltip="Primeira página",
             on_click=lambda _: self.mudar_pagina(1),
         )
         self.botao_pagina_anterior = ft.IconButton(
-            icon=ft.icons.KEYBOARD_ARROW_LEFT_OUTLINED,
+            icon=ft.Icons.KEYBOARD_ARROW_LEFT_OUTLINED,
             disabled=True,
             tooltip="Página anterior",
             on_click=lambda _: self.mudar_pagina(self.pagina_atual - 1),
@@ -39,13 +39,13 @@ class Paginacao:
             on_change=lambda e: self.on_change_digita_pagina(e),
         )
         self.botao_proxima_pagina = ft.IconButton(
-            icon=ft.icons.KEYBOARD_ARROW_RIGHT_OUTLINED,
+            icon=ft.Icons.KEYBOARD_ARROW_RIGHT_OUTLINED,
             disabled=True,
             tooltip="Próxima página",
             on_click=lambda _: self.mudar_pagina(self.pagina_atual + 1),
         )
         self.botao_ultima_pagina = ft.IconButton(
-            icon=ft.icons.KEYBOARD_DOUBLE_ARROW_RIGHT_OUTLINED,
+            icon=ft.Icons.KEYBOARD_DOUBLE_ARROW_RIGHT_OUTLINED,
             disabled=True,
             tooltip="Última página",
             on_click=lambda _: self.mudar_pagina(self.total_paginas),

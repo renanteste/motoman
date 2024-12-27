@@ -58,7 +58,7 @@ class LiberacaoHorasExtras:
         self.cartao_periodo_apontamento = ft.Card(
             elevation=1.5,
             animate_scale=200,
-            surface_tint_color=ft.colors.INVERSE_PRIMARY,
+            surface_tint_color=ft.Colors.INVERSE_PRIMARY,
             content=ft.Container(
                 padding=10,
                 content=ft.Column(
@@ -88,7 +88,7 @@ class LiberacaoHorasExtras:
         self.cartao_painel_visualizacao = ft.Card(
             elevation=1.5,
             animate_scale=200,
-            surface_tint_color=ft.colors.INVERSE_PRIMARY,
+            surface_tint_color=ft.Colors.INVERSE_PRIMARY,
             content=ft.Container(padding=10, content=self.coluna_painel_visualizacao),
             visible=False,
         )
@@ -112,7 +112,7 @@ class LiberacaoHorasExtras:
         self.campo_comentarios = ft.TextField(
             dense=True,
             expand=True,
-            bgcolor=ft.colors.WHITE,
+            bgcolor=ft.Colors.WHITE,
             tooltip="Comente a ação de aprovar ou reprovar a solicitação",
             max_length=250,
             multiline=True,
@@ -121,8 +121,8 @@ class LiberacaoHorasExtras:
             max_lines=3,
         )
         self.botao_salvar = ft.IconButton(
-            icon=ft.icons.CHECK_CIRCLE_OUTLINE_OUTLINED,
-            icon_color=ft.colors.GREEN,
+            icon=ft.Icons.CHECK_CIRCLE_OUTLINE_OUTLINED,
+            icon_color=ft.Colors.GREEN,
             icon_size=40,
             tooltip="Salvar",
             on_click=lambda e: self.salvar_edicao(
@@ -230,8 +230,8 @@ class LiberacaoHorasExtras:
                     controls=[
                         self.botao_salvar,
                         ft.IconButton(
-                            icon=ft.icons.CANCEL_OUTLINED,
-                            icon_color=ft.colors.RED,
+                            icon=ft.Icons.CANCEL_OUTLINED,
+                            icon_color=ft.Colors.RED,
                             icon_size=40,
                             tooltip="Cancelar",
                             on_click=lambda _: self.cancelar_edicao(),
@@ -243,14 +243,14 @@ class LiberacaoHorasExtras:
         self.cartao_painel_edicao = ft.Card(
             elevation=1.5,
             animate_scale=200,
-            surface_tint_color=ft.colors.INVERSE_PRIMARY,
+            surface_tint_color=ft.Colors.INVERSE_PRIMARY,
             content=ft.Container(padding=10, content=self.coluna_painel_liberacao),
             visible=False,
         )
 
         # Componentes da filtragem de registros
         self.botao_limpa_filtros = ft.IconButton(
-            icon=ft.icons.FILTER_ALT_OFF_OUTLINED,
+            icon=ft.Icons.FILTER_ALT_OFF_OUTLINED,
             tooltip="Limpar filtros",
             on_click=lambda _: self.limpar_filtros(),
             disabled=True,
@@ -436,22 +436,22 @@ class LiberacaoHorasExtras:
                 # Cores da linha por status
                 if liberacao["status_aprovacao"] == "1":
                     # Aguardando aprovação
-                    cor_da_linha = ft.colors.YELLOW
+                    cor_da_linha = ft.Colors.YELLOW
 
                 elif liberacao["status_aprovacao"] == "2":
                     # Aprovada
-                    cor_da_linha = ft.colors.GREEN
+                    cor_da_linha = ft.Colors.GREEN
 
                 elif liberacao["status_aprovacao"] == "3":
                     # Rejeitada
-                    cor_da_linha = ft.colors.RED
+                    cor_da_linha = ft.Colors.RED
 
                 else:
                     cor_da_linha = None
 
                 botoes_da_linha.append(
                     ft.Icon(
-                        name=ft.icons.ARROW_RIGHT_ROUNDED,
+                        name=ft.Icons.ARROW_RIGHT_ROUNDED,
                         tooltip="Status "
                         + STATUS_APROVACAO[liberacao["status_aprovacao"]],
                         color=cor_da_linha,
@@ -462,19 +462,19 @@ class LiberacaoHorasExtras:
                 if liberacao["status_aprovacao"] == "1":
                     botoes_da_linha.append(
                         ft.IconButton(
-                            icon=ft.icons.ALARM_ON_OUTLINED,
+                            icon=ft.Icons.ALARM_ON_OUTLINED,
                             data=(liberacao["id"], len(self.browse_liberacoes.rows)),
                             tooltip="Aprovar solicitação",
-                            icon_color=ft.colors.GREEN_ACCENT,
+                            icon_color=ft.Colors.GREEN_ACCENT,
                             on_click=self.aprovar_solicitacao,
                         ),
                     )
                     botoes_da_linha.append(
                         ft.IconButton(
-                            icon=ft.icons.ALARM_OFF_OUTLINED,
+                            icon=ft.Icons.ALARM_OFF_OUTLINED,
                             data=(liberacao["id"], len(self.browse_liberacoes.rows)),
                             tooltip="Recusar solicitação",
-                            icon_color=ft.colors.RED,
+                            icon_color=ft.Colors.RED,
                             on_click=self.recusar_solicitacao,
                         ),
                     )

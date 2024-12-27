@@ -14,14 +14,14 @@ class Login:
         self.navigation_bar = navigation_bar
         self.nome_usuario_input = ft.TextField(
             label="Usuário",
-            prefix_icon=ft.icons.PERSON_2_OUTLINED,
+            prefix_icon=ft.Icons.PERSON_2_OUTLINED,
             expand=True,
             autofocus=True,
             on_blur=lambda e: self.completa_email(e),
         )
         self.senha_input = ft.TextField(
             label="Senha",
-            prefix_icon=ft.icons.LOCK_OUTLINE_ROUNDED,
+            prefix_icon=ft.Icons.LOCK_OUTLINE_ROUNDED,
             expand=True,
             password=True,
             can_reveal_password=True,
@@ -30,7 +30,7 @@ class Login:
         self.login_button = ft.OutlinedButton(
             text="Login",
             width=240,
-            icon=ft.icons.LOGIN_OUTLINED,
+            icon=ft.Icons.LOGIN_OUTLINED,
             on_click=self.on_login_click,
         )
         self.login_view = self.get_login_view()
@@ -100,14 +100,14 @@ class Login:
                 controls=[
                     ft.Container(
                         padding=ft.padding.only(60, 34, 60, 20),
-                        bgcolor=ft.colors.SURFACE,
+                        bgcolor=ft.Colors.SURFACE,
                         border_radius=10,
                         width=500,
                         height=360,
                         shadow=ft.BoxShadow(
                             spread_radius=5,
                             blur_radius=5,
-                            color=ft.colors.GREY_300,
+                            color=ft.Colors.GREY_300,
                             offset=ft.Offset(1, 1),
                             blur_style=ft.ShadowBlurStyle.NORMAL,
                         ),

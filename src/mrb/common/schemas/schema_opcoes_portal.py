@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class OpcaoPortal(BaseModel):
@@ -11,5 +11,4 @@ class OpcaoPortal(BaseModel):
     icone_selecionado: Optional[str] = None
     disponivel_menu: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

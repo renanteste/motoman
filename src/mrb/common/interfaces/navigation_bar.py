@@ -13,7 +13,7 @@ class NavigationBar:
             value=self.descricao, size=26, weight=ft.FontWeight.W_500
         )
         self.btn_change_theme = ft.IconButton(
-            icon=ft.icons.DARK_MODE_OUTLINED,
+            icon=ft.Icons.DARK_MODE_OUTLINED,
             tooltip="Tema claro/escuro",
             on_click=lambda e: self.change_theme(e=e),
         )
@@ -21,7 +21,7 @@ class NavigationBar:
             "Faça o Login para acessar o sistema!", size=15, weight=ft.FontWeight.W_600
         )
         self.btn_logout = ft.IconButton(
-            icon=ft.icons.LOGOUT_OUTLINED,
+            icon=ft.Icons.LOGOUT_OUTLINED,
             disabled=True,
             tooltip="Logout",
             on_click=lambda _: self.page.go("/logout"),
@@ -41,7 +41,7 @@ class NavigationBar:
         return ft.AppBar(
             elevation=10,
             leading_width=180,
-            bgcolor=ft.colors.PRIMARY_CONTAINER,
+            bgcolor=ft.Colors.PRIMARY_CONTAINER,
             leading=ft.Container(
                 padding=ft.padding.only(left=15),
                 alignment=ft.alignment.center,
@@ -50,7 +50,7 @@ class NavigationBar:
                     alignment=ft.MainAxisAlignment.CENTER,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     controls=[
-                        ft.Icon(ft.icons.COTTAGE_OUTLINED, size=36),
+                        ft.Icon(ft.Icons.COTTAGE_OUTLINED, size=36),
                         ft.Column(
                             expand=True,
                             alignment=ft.MainAxisAlignment.CENTER,
@@ -64,15 +64,15 @@ class NavigationBar:
             actions=[
                 self.btn_change_theme,
                 ft.PopupMenuButton(
-                    icon=ft.icons.COLOR_LENS_OUTLINED,
+                    icon=ft.Icons.COLOR_LENS_OUTLINED,
                     tooltip="Trocar cor do tema",
                     items=[
                         ft.PopupMenuItem(
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.PURPLE_300,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.PURPLE_300,
                                     ),
                                     ft.Text("Roxo"),
                                 ]
@@ -83,8 +83,8 @@ class NavigationBar:
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.ORANGE_300,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.ORANGE_300,
                                     ),
                                     ft.Text("Laranja"),
                                 ]
@@ -95,8 +95,8 @@ class NavigationBar:
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.GREEN_300,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.GREEN_300,
                                     ),
                                     ft.Text("Verde"),
                                 ]
@@ -107,8 +107,8 @@ class NavigationBar:
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.RED_300,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.RED_300,
                                     ),
                                     ft.Text("Vermelho"),
                                 ]
@@ -119,8 +119,8 @@ class NavigationBar:
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.BLUE_300,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.BLUE_300,
                                     ),
                                     ft.Text("Azul (Default)"),
                                 ]
@@ -131,8 +131,8 @@ class NavigationBar:
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.YELLOW_300,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.YELLOW_300,
                                     ),
                                     ft.Text("Amarelo"),
                                 ]
@@ -143,8 +143,8 @@ class NavigationBar:
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.INDIGO_300,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.INDIGO_300,
                                     ),
                                     ft.Text("Indigo"),
                                 ]
@@ -155,8 +155,8 @@ class NavigationBar:
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.TEAL_300,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.TEAL_300,
                                     ),
                                     ft.Text("Teal"),
                                 ]
@@ -167,8 +167,8 @@ class NavigationBar:
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.LIME_300,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.LIME_300,
                                     ),
                                     ft.Text("Lime"),
                                 ]
@@ -179,8 +179,8 @@ class NavigationBar:
                             content=ft.Row(
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.COLOR_LENS_OUTLINED,
-                                        color=ft.colors.BROWN_400,
+                                        ft.Icons.COLOR_LENS_OUTLINED,
+                                        color=ft.Colors.BROWN_400,
                                     ),
                                     ft.Text("Marrom"),
                                 ]
@@ -212,11 +212,11 @@ class NavigationBar:
     def change_theme(self, e):
         if self.page.theme_mode == ft.ThemeMode.LIGHT:
             self.page.theme_mode = ft.ThemeMode.DARK
-            self.btn_change_theme.icon = ft.icons.WB_SUNNY_OUTLINED
+            self.btn_change_theme.icon = ft.Icons.WB_SUNNY_OUTLINED
 
         else:
             self.page.theme_mode = ft.ThemeMode.LIGHT
-            self.btn_change_theme.icon = ft.icons.DARK_MODE_OUTLINED
+            self.btn_change_theme.icon = ft.Icons.DARK_MODE_OUTLINED
 
         self.page.update()
 

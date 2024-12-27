@@ -9,8 +9,8 @@ OPCOES_MENU_PRINCIPAL = [
         "descricao_menu": "Solicitações Horas Extras",
         "modulo": "RH",
         "url_view": "/solicita_he",
-        "icone": ft.icons.ADD_ALARM_OUTLINED,
-        "icone_selecionado": ft.icons.ADD_ALARM,
+        "icone": ft.Icons.ADD_ALARM_OUTLINED,
+        "icone_selecionado": ft.Icons.ADD_ALARM,
         "disponivel_menu": True,
     },
     {
@@ -18,8 +18,8 @@ OPCOES_MENU_PRINCIPAL = [
         "descricao_menu": "Aprovação Horas Extras",
         "modulo": "RH",
         "url_view": "/aprova_he",
-        "icone": ft.icons.ACCESS_ALARM_OUTLINED,
-        "icone_selecionado": ft.icons.ACCESS_ALARM,
+        "icone": ft.Icons.ACCESS_ALARM_OUTLINED,
+        "icone_selecionado": ft.Icons.ACCESS_ALARM,
         "disponivel_menu": True,
     },
     {

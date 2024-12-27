@@ -1,5 +1,5 @@
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Literal, Optional
 from datetime import datetime
 
@@ -23,8 +23,7 @@ class LiberacaoHorasExtras(BaseModel):
     comentario_aprovador: Optional[str] = None
     data_aprovacao: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ListaLiberacaoHorasExtras(BaseModel):
@@ -38,5 +37,4 @@ class ListaLiberacaoHorasExtras(BaseModel):
     total_de_paginas: int = 0
     liberacoes_horas_extras: List[LiberacaoHorasExtras]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

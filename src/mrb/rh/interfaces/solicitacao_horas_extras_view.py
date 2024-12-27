@@ -37,13 +37,13 @@ class SolicitacaoHorasExtras:
         self.pagina_atual_browse = 0
         self.total_paginas_browse = ft.Text("0")
         self.botao_primeira_pagina = ft.IconButton(
-            icon=ft.icons.KEYBOARD_DOUBLE_ARROW_LEFT_OUTLINED,
+            icon=ft.Icons.KEYBOARD_DOUBLE_ARROW_LEFT_OUTLINED,
             disabled=True,
             tooltip="Ir para a primeira página",
             on_click=lambda _: self.vai_para_pagina(1),
         )
         self.botao_pagina_anterior = ft.IconButton(
-            icon=ft.icons.KEYBOARD_ARROW_LEFT_OUTLINED,
+            icon=ft.Icons.KEYBOARD_ARROW_LEFT_OUTLINED,
             disabled=True,
             tooltip="Ir para a página anterior",
             on_click=lambda _: self.vai_para_pagina(self.pagina_atual_browse - 1),
@@ -62,13 +62,13 @@ class SolicitacaoHorasExtras:
             disabled=True,
         )
         self.botao_proxima_pagina = ft.IconButton(
-            icon=ft.icons.KEYBOARD_ARROW_RIGHT_OUTLINED,
+            icon=ft.Icons.KEYBOARD_ARROW_RIGHT_OUTLINED,
             disabled=True,
             tooltip="Ir para a próxima página",
             on_click=lambda _: self.vai_para_pagina(self.pagina_atual_browse + 1),
         )
         self.botao_ultima_pagina = ft.IconButton(
-            icon=ft.icons.KEYBOARD_DOUBLE_ARROW_RIGHT_OUTLINED,
+            icon=ft.Icons.KEYBOARD_DOUBLE_ARROW_RIGHT_OUTLINED,
             disabled=True,
             tooltip="Ir para a última página",
             on_click=lambda _: self.vai_para_pagina(
@@ -78,7 +78,7 @@ class SolicitacaoHorasExtras:
 
         # Componentes da filtragem de registros
         self.botao_limpa_filtros = ft.IconButton(
-            icon=ft.icons.FILTER_ALT_OFF_OUTLINED,
+            icon=ft.Icons.FILTER_ALT_OFF_OUTLINED,
             tooltip="Limpar filtros",
             on_click=lambda _: self.limpar_filtros(),
             disabled=True,
@@ -112,7 +112,7 @@ class SolicitacaoHorasExtras:
 
         # Inclusão de novo registro
         self.botao_nova_solicitacao = ft.IconButton(
-            icon=ft.icons.ADD_OUTLINED,
+            icon=ft.Icons.ADD_OUTLINED,
             tooltip="Nova Solicitação de Hora Extra",
             icon_color="primary",
             on_click=lambda _: self.interface_edicao_hora_extra(),
@@ -143,7 +143,7 @@ class SolicitacaoHorasExtras:
         self.cartao_painel_visualizacao = ft.Card(
             elevation=1.5,
             animate_scale=200,
-            surface_tint_color=ft.colors.INVERSE_PRIMARY,
+            surface_tint_color=ft.Colors.INVERSE_PRIMARY,
             content=ft.Container(padding=10, content=self.coluna_painel_visualizacao),
             visible=False,
         )
@@ -162,7 +162,7 @@ class SolicitacaoHorasExtras:
             width=120,
             hint_text="  /  /    ",
             data="",
-            bgcolor=ft.colors.WHITE,
+            bgcolor=ft.Colors.WHITE,
             on_blur=lambda e: self.on_blur_data_planejada(e),
             text_size=14,
         )
@@ -172,7 +172,7 @@ class SolicitacaoHorasExtras:
             width=80,
             hint_text="0,00",
             data="",
-            bgcolor=ft.colors.WHITE,
+            bgcolor=ft.Colors.WHITE,
             tooltip="Digitar o total de horas decimais planejadas. Ex.: 2h 30m = 2,50h.",
             text_align=ft.TextAlign.RIGHT,
             text_size=14,
@@ -180,7 +180,7 @@ class SolicitacaoHorasExtras:
         self.campo_motivo = ft.TextField(
             dense=True,
             expand=True,
-            bgcolor=ft.colors.WHITE,
+            bgcolor=ft.Colors.WHITE,
             tooltip="Informe o motivo da necessidade de horas extras",
             max_length=250,
             multiline=True,
@@ -232,8 +232,8 @@ class SolicitacaoHorasExtras:
                     alignment=ft.MainAxisAlignment.CENTER,
                     controls=[
                         ft.IconButton(
-                            icon=ft.icons.CHECK_CIRCLE_OUTLINE_OUTLINED,
-                            icon_color=ft.colors.GREEN,
+                            icon=ft.Icons.CHECK_CIRCLE_OUTLINE_OUTLINED,
+                            icon_color=ft.Colors.GREEN,
                             icon_size=40,
                             tooltip="Salvar",
                             on_click=lambda _: self.salvar_edicao(
@@ -241,8 +241,8 @@ class SolicitacaoHorasExtras:
                             ),
                         ),
                         ft.IconButton(
-                            icon=ft.icons.CANCEL_OUTLINED,
-                            icon_color=ft.colors.RED,
+                            icon=ft.Icons.CANCEL_OUTLINED,
+                            icon_color=ft.Colors.RED,
                             icon_size=40,
                             tooltip="Cancelar",
                             on_click=lambda _: self.cancelar_edicao(),
@@ -255,7 +255,7 @@ class SolicitacaoHorasExtras:
         self.cartao_periodo_apontamento = ft.Card(
             elevation=1.5,
             animate_scale=200,
-            surface_tint_color=ft.colors.INVERSE_PRIMARY,
+            surface_tint_color=ft.Colors.INVERSE_PRIMARY,
             content=ft.Container(
                 padding=10,
                 content=ft.Column(
@@ -284,7 +284,7 @@ class SolicitacaoHorasExtras:
         self.cartao_painel_edicao = ft.Card(
             elevation=1.5,
             animate_scale=200,
-            surface_tint_color=ft.colors.INVERSE_PRIMARY,
+            surface_tint_color=ft.Colors.INVERSE_PRIMARY,
             content=ft.Container(padding=10, content=self.coluna_painel_edicao),
             visible=False,
         )
@@ -682,14 +682,14 @@ class SolicitacaoHorasExtras:
             for solicitacao in retorno_solicitacoes["solicitacoes_horas_extras"]:
                 botoes_da_linha = [
                     ft.IconButton(
-                        icon=ft.icons.EDIT_OUTLINED,
+                        icon=ft.Icons.EDIT_OUTLINED,
                         icon_color="blue",
                         data=(solicitacao["id"], len(self.browse_solicitacoes.rows)),
                         tooltip="Editar solicitação",
                         on_click=self.editar_solicitacao,
                     ),
                     ft.IconButton(
-                        icon=ft.icons.DELETE_OUTLINED,
+                        icon=ft.Icons.DELETE_OUTLINED,
                         icon_color="red",
                         data=solicitacao["id"],
                         tooltip="Apagar solicitacao",
@@ -699,7 +699,7 @@ class SolicitacaoHorasExtras:
                 if solicitacao["status_aprovacao"] == "0":
                     botoes_da_linha.append(
                         ft.IconButton(
-                            icon=ft.icons.ADD_MODERATOR_OUTLINED,
+                            icon=ft.Icons.ADD_MODERATOR_OUTLINED,
                             icon_color="green",
                             data=(
                                 solicitacao["id"],
