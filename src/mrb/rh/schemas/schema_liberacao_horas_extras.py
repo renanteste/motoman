@@ -9,19 +9,49 @@ class LiberacaoHorasExtras(BaseModel):
     Modelo da estrutura de recebimento e retorno de Liberações de Horas Extras
     """
 
-    id: int
-    matricula: str
-    nome: str
-    data_solicitacao: datetime
-    data_planejada: datetime
-    motivo: str
-    total_horas_planejada: Decimal = Field(..., max_digits=4, decimal_places=2)
-    status_aprovacao: Literal[
-        "0", "1", "2", "3", "4"
-    ]  # 0: Digitação, 1: Aguardando aprovação, 2: Aprovada, 3: Rejeitada, 4: Realizada
-    matricula_aprovador: Optional[str] = None
-    comentario_aprovador: Optional[str] = None
-    data_aprovacao: Optional[datetime] = None
+    id: int = Field(
+        ...,
+        examples=[23],
+        description="ID da solicitação de liberação de horas extras.",
+    )
+    matricula: str = Field(
+        ..., examples=["123456"], description="Matrícula do colaborador."
+    )
+    nome: str = Field(
+        ..., examples=["João da Silva"], description="Nome do colaborador."
+    )
+    data_solicitacao: datetime = Field(
+        ..., description="Data da solicitação de liberação de horas extras."
+    )
+    data_planejada: datetime = Field(
+        ..., description="Data planejada para realização das horas extras."
+    )
+    motivo: str = Field(
+        ...,
+        examples="Realização de inventário físico",
+        description="Motivo da solicitação de liberação de horas extras.",
+    )
+    total_horas_planejada: Decimal = Field(
+        ..., max_digits=4, decimal_places=2, description="Total de horas planejadas."
+    )
+    status_aprovacao: Literal["0", "1", "2", "3", "4"] = Field(
+        ...,
+        examples=["0", "1", "2", "3", "4"],
+        description="""
+                    Status da aprovação da solicitação.\n
+                    0: Digitação, 1: Aguardando aprovação, 2: Aprovada, 3: Rejeitada, 4: Realizada""",
+    )
+    matricula_aprovador: Optional[str] = Field(
+        ..., examples=["123456"], description="Matrícula do usuário aprovador."
+    )
+    comentario_aprovador: Optional[str] = Field(
+        None,
+        examples="O inventário programado foi cancelado!",
+        description="Comentário do aprovador sobre a liberação ou rejeição.",
+    )
+    data_aprovacao: Optional[datetime] = Field(
+        None, description="Data da aprovação ou rejeição da solicitação."
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,10 +61,14 @@ class ListaLiberacaoHorasExtras(BaseModel):
     Modelo listagem de retorno de Liberações de Horas Extras
     """
 
-    total_de_registros: int = 0
-    pagina: int = 0
-    registros_por_pagina: int = 0
-    total_de_paginas: int = 0
-    liberacoes_horas_extras: List[LiberacaoHorasExtras]
+    total_de_registros: int = Field(0, description="Total de registros encontrados.")
+    pagina: int = Field(0, description="Número da página atual.")
+    registros_por_pagina: int = Field(
+        0, description="Quantidade de registros por página."
+    )
+    total_de_paginas: int = Field(0, description="Total de páginas encontradas.")
+    liberacoes_horas_extras: List[LiberacaoHorasExtras] = Field(
+        None, description="Lista de liberações de horas extras."
+    )
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+from src.mrb.common.lib.log_httpexception_raise import log_httpexception_raise
 from src.mrb.common.security.auth_service import valida_token
 from src.mrb.comercial.schemas.schema_prospect import Prospect
 from src.mrb.comercial.models.model_prospects import Prospects
@@ -16,19 +18,44 @@ class ProspectApp:
         self.cnpj_representante: str = None
 
     def inserir_prospects(self, prospects: List[Prospect]) -> List[Prospect]:
-        novos_prospects = [
-            Prospects(
-                **prospect.model_dump(exclude={"cnpj_representante"}),
-                cnpj_representante=self.cnpj_representante,
+        try:
+            novos_prospects = [
+                Prospects(
+                    **prospect.model_dump(exclude={"cnpj_representante"}),
+                    cnpj_representante=self.cnpj_representante,
+                )
+                for prospect in prospects
+            ]
+            self.db.add_all(novos_prospects)
+            self.db.flush()
+            registros_gravados = [
+                Prospect.model_validate(prospect) for prospect in novos_prospects
+            ]
+            self.db.commit()
+
+        except HTTPException:
+            raise
+
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Erro ao inserir registros no banco de dados",
+                exc_info=True,
+                nivel_log=1,
+                excecao=e,
             )
-            for prospect in prospects
-        ]
-        self.db.add_all(novos_prospects)
-        self.db.flush()
-        registros_gravados = [
-            Prospect.model_validate(prospect) for prospect in novos_prospects
-        ]
-        self.db.commit()
+
+        except Exception as e:
+            self.db.rollback()
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Erro inesperado",
+                exc_info=True,
+                nivel_log=1,
+                excecao=e,
+            )
+
         return registros_gravados
 
 

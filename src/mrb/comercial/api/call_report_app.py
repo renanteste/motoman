@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+from src.mrb.common.lib.log_httpexception_raise import log_httpexception_raise
 from src.mrb.common.security.auth_service import valida_token
 from src.mrb.comercial.api.auth_representante_app import autentica_representante_app
 from src.mrb.comercial.models.model_call_reports import CallReports
@@ -16,19 +18,45 @@ class CallReportApp:
         self.cnpj_representante: str = None
 
     def inserir_call_reports(self, call_reports: List[CallReport]) -> List[CallReport]:
-        novos_call_reports = [
-            CallReports(
-                **call_report.model_dump(exclude={"cnpj_representante"}),
-                cnpj_representante=self.cnpj_representante
+        try:
+            novos_call_reports = [
+                CallReports(
+                    **call_report.model_dump(exclude={"cnpj_representante"}),
+                    cnpj_representante=self.cnpj_representante
+                )
+                for call_report in call_reports
+            ]
+            self.db.add_all(novos_call_reports)
+            self.db.flush()
+            registros_gravados = [
+                CallReport.model_validate(call_report)
+                for call_report in novos_call_reports
+            ]
+            self.db.commit()
+
+        except HTTPException:
+            raise
+
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Erro ao inserir registros no banco de dados",
+                exc_info=True,
+                nivel_log=1,
+                excecao=e,
             )
-            for call_report in call_reports
-        ]
-        self.db.add_all(novos_call_reports)
-        self.db.flush()
-        registros_gravados = [
-            CallReport.model_validate(call_report) for call_report in novos_call_reports
-        ]
-        self.db.commit()
+
+        except Exception as e:
+            self.db.rollback()
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Erro inesperado",
+                exc_info=True,
+                nivel_log=1,
+                excecao=e,
+            )
+
         return registros_gravados
 
 
