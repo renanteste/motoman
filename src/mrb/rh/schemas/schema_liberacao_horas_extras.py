@@ -28,7 +28,7 @@ class LiberacaoHorasExtras(BaseModel):
     )
     motivo: str = Field(
         ...,
-        examples="Realização de inventário físico",
+        examples=["Realização de inventário físico"],
         description="Motivo da solicitação de liberação de horas extras.",
     )
     total_horas_planejada: Decimal = Field(
@@ -46,7 +46,7 @@ class LiberacaoHorasExtras(BaseModel):
     )
     comentario_aprovador: Optional[str] = Field(
         None,
-        examples="O inventário programado foi cancelado!",
+        examples=["O inventário programado foi cancelado!"],
         description="Comentário do aprovador sobre a liberação ou rejeição.",
     )
     data_aprovacao: Optional[datetime] = Field(

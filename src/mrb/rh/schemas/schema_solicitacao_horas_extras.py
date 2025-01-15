@@ -25,14 +25,14 @@ class SolicitacaoHorasExtras(BaseModel):
     motivo: str = Field(
         ...,
         max_length=250,
-        examples="Realização de inventário físico",
+        examples=["Realização de inventário físico"],
         description="Motivo da solicitação de horas extras.",
     )
     total_horas_planejada: Decimal = Field(
         ...,
         max_digits=4,
         decimal_places=2,
-        examples=2.5,
+        examples=[2.5],
         description="Total de horas planejadas.",
     )
     status_aprovacao: Literal["0", "1", "2", "3", "4"] = Field(
@@ -50,7 +50,7 @@ class SolicitacaoHorasExtras(BaseModel):
     comentario_aprovador: Optional[str] = Field(
         None,
         max_length=250,
-        examples="O inventário programado foi cancelado!",
+        examples=["O inventário programado foi cancelado!"],
         description="Comentário do aprovador sobre a liberação ou rejeição.",
     )
     matricula_aprovador: Optional[str] = Field(
