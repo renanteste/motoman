@@ -57,12 +57,10 @@ class BotoesMenuPrincipal:
         auth_session = AuthSession()
 
         if auth_session.user_data:
+            acessos = auth_session.user_data.get("acessos", {})
+            lista_acesso = acessos.get("lista_acesso", []) if acessos else []
             for opcao in OPCOES_MENU_PRINCIPAL:
-                if (
-                    opcao["disponivel_menu"]
-                    and opcao["codigo_rotina"]
-                    in auth_session.user_data["acessos"]["lista_acesso"]
-                ):
+                if opcao["disponivel_menu"] and opcao["codigo_rotina"] in lista_acesso:
                     opcoes_menu_pricipal.append(
                         ft.NavigationRailDestination(
                             icon=ft.Icon(

@@ -2,6 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 import flet as ft
 
+from src.mrb.common.interfaces.valida_data_digitada import valida_data_digitada
 from src.mrb.common.interfaces.preenche_data import preenche_data
 from src.mrb.rh.interfaces.comunica_api_horas_extras import ComunicaApiHorasExtras
 from src.mrb.rh.interfaces.periodo_apontamento import PeriodoApontamento
@@ -88,6 +89,12 @@ class SolicitacaoHorasExtras:
             on_change=lambda e: preenche_data(
                 evento=e, se_data_valida=self.carrega_solicitacoes
             ),
+            on_blur=lambda e: valida_data_digitada(
+                evento=e, se_data_valida=self.carrega_solicitacoes
+            ),
+            input_filter=ft.InputFilter(
+                allow=True, regex_string=r"^[0-9/]*$", replacement_string=""
+            ),
             width=120,
             hint_text="  /  /    ",
             data="",
@@ -97,6 +104,12 @@ class SolicitacaoHorasExtras:
             dense=True,
             on_change=lambda e: preenche_data(
                 evento=e, se_data_valida=self.carrega_solicitacoes
+            ),
+            on_blur=lambda e: valida_data_digitada(
+                evento=e, se_data_valida=self.carrega_solicitacoes
+            ),
+            input_filter=ft.InputFilter(
+                allow=True, regex_string=r"^[0-9/]*$", replacement_string=""
             ),
             width=120,
             hint_text="  /  /    ",
@@ -159,16 +172,25 @@ class SolicitacaoHorasExtras:
         self.campo_data_planejada = ft.TextField(
             dense=True,
             on_change=lambda e: preenche_data(evento=e),
+            input_filter=ft.InputFilter(
+                allow=True, regex_string=r"^[0-9/]*$", replacement_string=""
+            ),
             width=120,
             hint_text="  /  /    ",
             data="",
             bgcolor=ft.Colors.WHITE,
-            on_blur=lambda e: self.on_blur_data_planejada(e),
+            on_blur=lambda e: valida_data_digitada(
+                evento=e, se_data_valida=lambda: self.on_blur_data_planejada(e)
+            ),
             text_size=14,
         )
         self.campo_quantidade_horas = ft.TextField(
             dense=True,
             on_change=lambda e: self.preenche_horas(e),
+            input_filter=ft.InputFilter(
+                allow=True, regex_string=r"^[0-9,]*$", replacement_string=""
+            ),
+            on_blur=lambda e: self.valida_horas(e),
             width=80,
             hint_text="0,00",
             data="",
@@ -407,27 +429,74 @@ class SolicitacaoHorasExtras:
         Caso o usuário informe um conteúdo inválido, restaura o conteúdo anterior utilizando a
         propriedade 'data' do TextField como pivô.
         """
-        apenas_numeros = "".join(c for c in e.control.value if c.isdigit())
+        if not self.page.web:
+            apenas_numeros = "".join(c for c in e.control.value if c.isdigit())
 
-        apenas_numeros = apenas_numeros.zfill(3)
+            apenas_numeros = apenas_numeros.zfill(3)
 
-        inteiro = apenas_numeros[:-2]
-        decimal = apenas_numeros[-2:]
+            inteiro = apenas_numeros[:-2]
+            decimal = apenas_numeros[-2:]
 
-        if int(inteiro) > 24 or (int(inteiro) == 24 and int(decimal) > 0):
-            Aviso(
-                self.page,
-                content="Total de horas não pode ser maior que 24!",
-                title="Atenção",
-                actions=["Ok"],
-            ).exibir()
-            e.control.value = e.control.data
+            if int(inteiro) > 24 or (int(inteiro) == 24 and int(decimal) > 0):
+                Aviso(
+                    self.page,
+                    content="Total de horas não pode ser maior que 24!",
+                    title="Atenção",
+                    actions=["Ok"],
+                ).exibir()
+                e.control.value = e.control.data
 
-        else:
-            e.control.value = f"{int(inteiro)},{decimal}"
-            e.control.data = e.control.value
+            else:
+                e.control.value = f"{int(inteiro)},{decimal}"
+                e.control.data = e.control.value
 
-        e.control.update()
+            e.control.update()
+
+    def valida_horas(self, evento):
+        if self.page.web:
+            campo: ft.TextField = evento.control
+
+            # Pega a posição da primeira vírgula que encontrar
+            posicao_virgula = campo.value.find(",")
+
+            # Se não encontrar vírgula, adiciona uma no final
+            if posicao_virgula == -1:
+                posicao_virgula = len(campo.value)
+                campo.value += ",00"
+
+            # Se a posição da vírgula for a primeira, adiciona um zero antes
+            if posicao_virgula == 0:
+                campo.value = f"0{campo.value}"
+                posicao_virgula += 1
+
+            # Pega os caracteres após a vírgula e remove todas as vírgulas
+            decimal = "".join(filter(str.isdigit, campo.value[posicao_virgula:]))
+
+            # Se o tamanho do decimal for maior que 2, pega os dois primeiros caracteres
+            if len(decimal) > 2:
+                decimal = decimal[:2]
+
+            # Se o tamanho do decimal for menor que 2, adiciona zeros à direita
+            if len(decimal) < 2:
+                decimal = decimal.ljust(2, "0")
+
+            # Monta novamente o valor do campo combinando a parte inteira com a parte decimal
+            campo.value = f"{campo.value[:posicao_virgula]},{decimal}"
+
+            # Garante que o valor não seja maior que 24
+            if float(campo.value.replace(",", ".")) > 24:
+                Aviso(
+                    self.page,
+                    content="Total de horas não pode ser maior que 24!",
+                    title="Atenção",
+                    actions=["Ok"],
+                ).exibir()
+                campo.value = campo.data
+
+            else:
+                campo.data = campo.value
+
+            campo.update()
 
     def on_blur_data_planejada(self, e):
         """
