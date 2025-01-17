@@ -2,6 +2,8 @@ import datetime
 import locale
 import flet as ft
 
+from src.mrb.common.config import SqlConfiguration
+
 
 class NavigationBar:
     def __init__(self, descricao: str, page: ft.Page = None) -> None:
@@ -31,6 +33,13 @@ class NavigationBar:
         self.update_day()
 
     def get_navigation_bar(self, descricao: str, nome_usuario: str = None):
+        ambiente = SqlConfiguration.DATABASE
+        if ambiente == "ZT8HTG":
+            ambiente = ""
+
+        else:
+            ambiente = f" ({ambiente})"
+
         self.descricao = descricao
         if nome_usuario:
             self.text_user.value = nome_usuario.capitalize()
@@ -193,7 +202,10 @@ class NavigationBar:
                     padding=10,
                     content=ft.Column(
                         spacing=0,
-                        controls=[ft.Text("Bem vindo!", size=12), self.text_user],
+                        controls=[
+                            ft.Text(f"Bem vindo!{ambiente}", size=12),
+                            self.text_user,
+                        ],
                     ),
                 ),
                 self.btn_logout,
