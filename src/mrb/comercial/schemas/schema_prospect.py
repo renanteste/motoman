@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 
 
@@ -97,5 +97,21 @@ class Prospect(BaseModel):
         description="""CNPJ do representante que está inserindo o Prospect, sem traços ou pontos. 
                         Preenchido automaticamente pela autenticação na API.""",
     )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ListaProspects(BaseModel):
+    """
+    Modelo da estrutura de retorno de lista de Prospects
+    """
+
+    total_de_registros: int = Field(0, description="Total de registros encontrados.")
+    pagina: int = Field(0, description="Número da página atual.")
+    registros_por_pagina: int = Field(
+        0, description="Quantidade de registros por página."
+    )
+    total_de_paginas: int = Field(0, description="Total de páginas encontradas.")
+    prospects: List[Prospect] = Field(..., description="Lista de prospects.")
 
     model_config = ConfigDict(from_attributes=True)
