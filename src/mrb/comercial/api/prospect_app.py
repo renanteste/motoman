@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 from src.mrb.common.lib.log_httpexception_raise import log_httpexception_raise
 from src.mrb.common.security.auth_service import valida_token
-from src.mrb.comercial.schemas.schema_prospect import ListaProspects, Prospect
+from src.mrb.comercial.schemas.schema_prospect import (
+    GetProspect,
+    ListaProspects,
+    Prospect,
+)
 from src.mrb.comercial.models.model_prospects import Prospects
 from src.mrb.comercial.models.model_pedidos_venda import cabecalho_pedidos_venda_sc5
 from src.mrb.comercial.models.model_clientes import clientes_sa1
@@ -167,7 +171,7 @@ class ProspectApp:
                     "%Y%m%d",
                 )
                 retorno["prospects"].append(
-                    Prospect(
+                    GetProspect(
                         cnpj=registro.A1_CGC,
                         empresa=registro.A1_NOME.strip(),
                         contato=registro.A1_CONTATO.strip(),
