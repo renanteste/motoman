@@ -16,7 +16,8 @@ CREATE TABLE prospects (
     ramal VARCHAR(6),
     celular VARCHAR(15),
     data_inclusao DATETIME,
-    data_transmissao DATETIME
+    data_transmissao DATETIME,
+    data_erp DATETIME
 );
 CREATE UNIQUE INDEX idx_prospects_id ON prospects (id);
 CREATE INDEX idx_prospects_cnpj_id ON prospects (cnpj_representante, cnpj, id);
