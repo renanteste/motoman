@@ -20,6 +20,7 @@ def main(page: ft.Page):
 
     page.on_route_change = portal_mrb_app.route_change
     page.on_view_pop = portal_mrb_app.view_pop
+    page.on_disconnect = portal_mrb_app.on_disconnect
     page.go("/login")
 
 

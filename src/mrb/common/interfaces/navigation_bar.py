@@ -5,6 +5,9 @@ import flet as ft
 from src.mrb.common.config import SqlConfiguration
 
 
+MENSAGEM_LOGIN = "Faça o Login para acessar o sistema!"
+
+
 class NavigationBar:
     def __init__(self, descricao: str, page: ft.Page = None) -> None:
         self.page = page
@@ -19,9 +22,7 @@ class NavigationBar:
             tooltip="Tema claro/escuro",
             on_click=lambda e: self.change_theme(e=e),
         )
-        self.text_user = ft.Text(
-            "Faça o Login para acessar o sistema!", size=15, weight=ft.FontWeight.W_600
-        )
+        self.text_user = ft.Text(MENSAGEM_LOGIN, size=15, weight=ft.FontWeight.W_600)
         self.btn_logout = ft.IconButton(
             icon=ft.Icons.LOGOUT_OUTLINED,
             disabled=True,
@@ -262,3 +263,6 @@ class NavigationBar:
 
         if self.text_user.parent:
             self.text_user.update()
+
+    def mensagem_login(self):
+        self.text_user.value = MENSAGEM_LOGIN
