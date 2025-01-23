@@ -65,7 +65,7 @@ class PortalMrbApp:
             )
 
         elif self.page.route == "/logout":
-            self.auth_session.clear_auth_data()
+            self.logout()
             self.page.go("/login")
 
         elif self.page.route == "/solicita_he":
@@ -125,3 +125,12 @@ class PortalMrbApp:
             acessar = False
 
         return acessar
+
+    def logout(self):
+        self.auth_session.clear_auth_data()
+        self.login_view.nome_usuario_input.value = None
+        self.login_view.senha_input.value = None
+        self.navigation_bar.mensagem_login()
+
+    def on_disconnect(self, e):
+        self.logout()
