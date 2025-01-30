@@ -17,6 +17,10 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.dialects import mssql
 
+from src.mrb.rh.schemas.schema_periodos_banco_horas import (
+    ListaPeriodosBancoHoras,
+    PeriodoBancoDeHoras,
+)
 from src.mrb.common.lib.recupera_parametro_sx6 import RecuperaParametroSx6
 from src.mrb.rh.schemas.schema_extrato_horas_extras import (
     ExtratoHorasExtras,
@@ -606,6 +610,85 @@ class CalculaExtratoHorasExtras:
             ]
 
         return extrato_horas_extras
+
+
+@extrato_horas_extras_router.get("/extrato_he/lista_periodos")
+def lista_periodos_bd(
+    payload: dict = Depends(valida_token),
+    db: Session = Depends(get_db),
+    pagina: int = Query(
+        default=1, ge=1, description="Número da página (maior que zero)"
+    ),
+    registros: int = Query(
+        default=10,
+        ge=1,
+        description="Quantidade de registros por página (maior que zero)",
+    ),
+) -> ListaPeriodosBancoHoras:
+
+    # Validar se tem acesso pelo token
+    if not valida_acesso_endpoint(db, payload):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+        )
+
+    # Instancia a classe de retorno
+    lista_periodos_banco_horas: ListaPeriodosBancoHoras = ListaPeriodosBancoHoras()
+
+    sx5 = aliased(tabelas_genericas_sx5, name="sx5")
+
+    # Prepara o controle de paginação
+    query = (
+        Select(func.count())
+        .select_from(sx5)
+        .where(
+            and_(
+                sx5.c.D_E_L_E_T_ == " ", sx5.c.X5_FILIAL == " ", sx5.c.X5_TABELA == "Z0"
+            )
+        )
+    )
+    lista_periodos_banco_horas.total_de_registros = db.execute(query).scalar_one()
+    lista_periodos_banco_horas.registros_por_pagina = registros
+    lista_periodos_banco_horas.total_de_paginas = (
+        lista_periodos_banco_horas.total_de_registros // registros
+    ) + (
+        1
+        if not lista_periodos_banco_horas.total_de_registros // registros
+        == lista_periodos_banco_horas.total_de_registros / registros
+        else 0
+    )
+
+    # Seleciona os registros da tabela de períodos
+    query = (
+        Select(sx5.c.X5_CHAVE, sx5.c.X5_DESCRI)
+        .where(
+            and_(
+                sx5.c.D_E_L_E_T_ == " ", sx5.c.X5_FILIAL == " ", sx5.c.X5_TABELA == "Z0"
+            )
+        )
+        .order_by(desc(sx5.c.X5_DESCRI))
+        .offset((pagina - 1) * registros)
+        .limit(registros)
+    )
+    resultado = db.execute(query).fetchall()
+
+    if resultado:
+        lista_periodos_banco_horas.pagina = pagina
+
+    for linha in resultado:
+        lista_periodos_banco_horas.periodos.append(
+            PeriodoBancoDeHoras(
+                codigo_do_periodo=linha.X5_CHAVE,
+                data_inicial_periodo=datetime.strptime(
+                    linha.X5_DESCRI[:8], "%Y%m%d"
+                ).date(),
+                data_final_periodo=datetime.strptime(
+                    linha.X5_DESCRI.strip()[8:], "%Y%m%d"
+                ).date(),
+            )
+        )
+
+    return lista_periodos_banco_horas
 
 
 @extrato_horas_extras_router.get("/extrato_he/{matricula_lider}")

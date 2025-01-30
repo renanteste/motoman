@@ -104,3 +104,5 @@ class ExtratoHorasExtras(BaseModel):
         default_factory=list,
         description="Lista contendo os movimentos do extrato para o período.",
     )
+
+    model_config = ConfigDict(from_attributes=True)
