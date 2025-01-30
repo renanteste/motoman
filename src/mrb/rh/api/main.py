@@ -14,6 +14,7 @@ from src.mrb.common.security.auth_service import auth_router
 from src.mrb.rh.api.solicitacao_horas_extras import solicitacao_horas_extras_router
 from src.mrb.common.lib.recupera_parametro_sx6 import recupera_parametro_sx6_router
 from src.mrb.common.routers_compartilhados import routers_compartilhados
+from src.mrb.rh.api.extrato_horas_extras import extrato_horas_extras_router
 
 
 async def life_span(app: FastAPI):
@@ -43,6 +44,7 @@ app.include_router(auth_router)
 app.include_router(solicitacao_horas_extras_router)
 app.include_router(recupera_parametro_sx6_router)
 app.include_router(routers_compartilhados)
+app.include_router(extrato_horas_extras_router)
 
 
 @app.exception_handler(Exception)
