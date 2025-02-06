@@ -14,6 +14,10 @@ Base = declarative_base()
 
 
 class MovimentosHorasExtras(Base):
+    """
+    Classe com a estrutura da tabela extrato_horas_extras no modelo do SQL Alchemy
+    """
+
     __tablename__ = "extrato_horas_extras"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

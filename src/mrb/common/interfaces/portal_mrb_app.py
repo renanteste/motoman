@@ -90,6 +90,9 @@ class PortalMrbApp:
         elif self.page.route == "/extrato_he":
             self.page.views.append(self.extrato_horas_extras.get_extrato_horas_extras())
             self.page.update()
+            self.extrato_horas_extras.recupera_periodos_banco_horas()
+            self.extrato_horas_extras.recupera_colaboradores_extrato()
+            self.extrato_horas_extras.recupera_extrato()
 
         self.page.update()
 

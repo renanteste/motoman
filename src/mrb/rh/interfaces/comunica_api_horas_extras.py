@@ -113,7 +113,12 @@ class ComunicaApiHorasExtras:
         )
 
         if response_solicitacoes.status_code == 200:
-            retorno_solicitacoes = response_solicitacoes.json()
+            content_type = response_solicitacoes.headers.get("Content-Type", "")
+            if "application/pdf" in content_type:
+                retorno_solicitacoes = response_solicitacoes.content
+
+            else:
+                retorno_solicitacoes = response_solicitacoes.json()
 
         else:
             if response_solicitacoes.status_code == 401:

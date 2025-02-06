@@ -1,3 +1,4 @@
+import base64
 import flet as ft
 import requests
 
@@ -57,7 +58,9 @@ class Login:
                 url=f"http://{ApiConfiguration.auth.URL}:{ApiConfiguration.auth.PORT}/auth",
                 data={
                     "username": self.nome_usuario_input.value,
-                    "password": self.senha_input.value,
+                    "password": base64.b64encode(
+                        self.senha_input.value.encode("utf-8")
+                    ).decode("utf-8"),
                 },
             )
             if response_auth.status_code == 200:

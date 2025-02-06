@@ -1,6 +1,7 @@
 from datetime import date, datetime, timedelta
 from typing import List, Union
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy import (
     Date,
     Select,
@@ -17,6 +18,13 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.dialects import mssql
 
+from src.mrb.rh.relatorios.relatorio_extrato_horas_extras import (
+    relatorio_extrato_horas_extras,
+)
+from src.mrb.rh.schemas.schema_colaboradores_extrato import (
+    ColaboradorExtrato,
+    ListaColaboradorExtrato,
+)
 from src.mrb.rh.schemas.schema_periodos_banco_horas import (
     ListaPeriodosBancoHoras,
     PeriodoBancoDeHoras,
@@ -541,7 +549,13 @@ class CalculaExtratoHorasExtras:
         return regravar
 
     def recupera_movimentos_extrato(
-        self, pagina: int, registros: int, forca_regravacao: bool = False
+        self,
+        pagina: int,
+        registros: int,
+        forca_regravacao: bool = False,
+        data_adicional_de: date = None,
+        data_adicional_ate: date = None,
+        matricula_colaborador: str = None,
     ) -> ExtratoHorasExtras:
         extrato_horas_extras: ExtratoHorasExtras = ExtratoHorasExtras(
             codigo_do_periodo=self.periodo_consulta[0],
@@ -555,6 +569,18 @@ class CalculaExtratoHorasExtras:
             self.grava_dados_extrato()
 
         # Calcula a quantidade de registros confirme as condições de seleção
+        condicoes = [
+            MovimentosHorasExtras.dia.between(self.data_inicial, self.data_final)
+        ]
+        # Se informados, insere os filtros adicionais de data
+        if data_adicional_de:
+            condicoes.append(MovimentosHorasExtras.dia >= data_adicional_de)
+        if data_adicional_ate:
+            condicoes.append(MovimentosHorasExtras.dia <= data_adicional_ate)
+        # Se informado, insere o filtro adicional da matrícula do colaborador
+        if matricula_colaborador:
+            condicoes.append(MovimentosHorasExtras.matricula == matricula_colaborador)
+
         query = (
             Select(func.count())
             .select_from(MovimentosHorasExtras)
@@ -567,9 +593,7 @@ class CalculaExtratoHorasExtras:
                     sra.c.RA_XLIDER == self.matricula_lider,
                 ),
             )
-            .where(
-                MovimentosHorasExtras.dia.between(self.data_inicial, self.data_final)
-            )
+            .where(and_(*condicoes))
         )
 
         extrato_horas_extras.total_de_registros = self.db.execute(query).scalar_one()
@@ -584,8 +608,13 @@ class CalculaExtratoHorasExtras:
         )
 
         # Seleciona os dados para retorno
+        campos_extrato = [
+            getattr(MovimentosHorasExtras, col)
+            for col in MovimentosHorasExtras.__table__.columns.keys()
+        ]
+        campos_extrato.append(sra.c.RA_NOME.label("nome"))
         query = (
-            Select(MovimentosHorasExtras)
+            Select(*campos_extrato)
             .join(
                 sra,
                 and_(
@@ -595,14 +624,13 @@ class CalculaExtratoHorasExtras:
                     sra.c.RA_XLIDER == self.matricula_lider,
                 ),
             )
-            .where(
-                MovimentosHorasExtras.dia.between(self.data_inicial, self.data_final)
-            )
+            .where(and_(*condicoes))
             .order_by(MovimentosHorasExtras.matricula, MovimentosHorasExtras.dia)
             .offset((pagina - 1) * registros)
             .limit(registros)
         )
-        resultado = self.db.execute(query).scalars().all()
+
+        resultado = self.db.execute(query).fetchall()
         if resultado:
             extrato_horas_extras.pagina = pagina
             extrato_horas_extras.movimentos = [
@@ -691,12 +719,144 @@ def lista_periodos_bd(
     return lista_periodos_banco_horas
 
 
+@extrato_horas_extras_router.get("/extrato_he/colaboradores/{matricula_lider}")
+def lista_colaboradores_extrato(
+    matricula_lider: str,
+    payload: dict = Depends(valida_token),
+    db: Session = Depends(get_db),
+    codigo_periodo: Union[str, None] = Query(
+        default=None,
+        title="Código do Período",
+        description="Código que identifica um período específico para consulta do extrato de horas extras.",
+        examples=["000001", "000015"],
+    ),
+    pagina: int = Query(
+        default=1, ge=1, description="Número da página (maior que zero)"
+    ),
+    registros: int = Query(
+        default=10,
+        ge=1,
+        description="Quantidade de registros por página (maior que zero)",
+    ),
+) -> ListaColaboradorExtrato:
+
+    # Validar se tem acesso pelo token
+    if not valida_acesso_endpoint(db, payload):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+        )
+
+    # Instanciamento da classe já calcula os períodos
+    extrato_horas_extras = CalculaExtratoHorasExtras(
+        db=db, matricula_lider=matricula_lider, codigo_periodo=codigo_periodo
+    )
+
+    lista_colaboradores = ListaColaboradorExtrato(
+        matricula_do_lider=matricula_lider,
+        codigo_do_periodo=extrato_horas_extras.periodo_consulta[0],
+        data_inicial_movimentos=extrato_horas_extras.periodo_consulta[1],
+        data_final_movimentos=extrato_horas_extras.periodo_consulta[2],
+    )
+
+    sra = aliased(funcionarios_sra, name="sra")
+    query_base = (
+        Select(MovimentosHorasExtras.matricula, sra.c.RA_NOME.label("nome"))
+        .join(
+            sra,
+            and_(
+                sra.c.D_E_L_E_T_ == " ",
+                sra.c.RA_FILIAL == "01",
+                sra.c.RA_MAT == MovimentosHorasExtras.matricula,
+                sra.c.RA_XLIDER == matricula_lider,
+            ),
+        )
+        .where(
+            and_(
+                MovimentosHorasExtras.dia.between(
+                    extrato_horas_extras.data_inicial,
+                    extrato_horas_extras.data_final,
+                )
+            )
+        )
+        .group_by(MovimentosHorasExtras.matricula, sra.c.RA_NOME)
+    )
+    # Conta os registros para o controle de paginação
+    query = Select(func.count()).select_from(query_base.subquery())
+    lista_colaboradores.total_de_registros = db.execute(query).scalar_one()
+    lista_colaboradores.registros_por_pagina = registros
+    lista_colaboradores.total_de_paginas = (
+        lista_colaboradores.total_de_registros // registros
+    ) + (
+        1
+        if not lista_colaboradores.total_de_registros // registros
+        == lista_colaboradores.total_de_registros / registros
+        else 0
+    )
+    # Executa a seleção de todos os colaboradores do líder que tem lançamento de extrato no período
+    query = (
+        query_base.order_by(sra.c.RA_NOME)
+        .offset((pagina - 1) * registros)
+        .limit(registros)
+    )
+
+    resultado = db.execute(query).fetchall()
+    if resultado:
+        lista_colaboradores.pagina = pagina
+        lista_colaboradores.colaboradores = [
+            ColaboradorExtrato.model_validate(
+                {"matricula": linha.matricula, "nome": linha.nome.rstrip()}
+            )
+            for linha in resultado
+        ]
+    return lista_colaboradores
+
+
+@extrato_horas_extras_router.get(
+    "/extrato_he/relatorio/{codigo_periodo}/{matricula_lider}"
+)
+def gera_relatorio_horas_extras(
+    codigo_periodo: str,
+    matricula_lider: str,
+    payload: dict = Depends(valida_token),
+    db: Session = Depends(get_db),
+    matricula_colaborador: str = Query(
+        default=None,
+        title="Matrícula do colaborador",
+        description="Parâmetro opcional contendo a matrícula de um único colaborador para gerar o relatório.",
+        examples=["123456"],
+    ),
+):
+    # Validar se tem acesso pelo token
+    if not valida_acesso_endpoint(db, payload):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+        )
+
+    relatorio = relatorio_extrato_horas_extras(
+        db=db,
+        codigo_periodo=codigo_periodo,
+        matricula_lider=matricula_lider,
+        matricula_colaborador=matricula_colaborador,
+    )
+
+    if relatorio:
+        return FileResponse(
+            relatorio, media_type="application/pdf", filename=relatorio.split("/")[-1]
+        )
+
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dados não localizados para impressão",
+        )
+
+
 @extrato_horas_extras_router.get("/extrato_he/{matricula_lider}")
 def recupera_extrato_horas_extras(
     matricula_lider: str,
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
-    codigo_periodo: Union[str, None] = Query(
+    codigo_periodo: str = Query(
         default=None,
         title="Código do Período",
         description="Código que identifica um período específico para consulta do extrato de horas extras.",
@@ -718,6 +878,17 @@ def recupera_extrato_horas_extras(
                     """,
         examples=["true", "false"],
     ),
+    data_de: date = Query(
+        default=None, description="Filtro adicional de data dentro do período."
+    ),
+    data_ate: date = Query(
+        default=None, description="Filtro adicional de data dentro do período."
+    ),
+    matricula_colaborador: str = Query(
+        default=None,
+        description="Matrícula do colaborador para filtro de movimentos.",
+        examples=["123456"],
+    ),
 ) -> ExtratoHorasExtras:
 
     # Validar se tem acesso pelo token
@@ -732,5 +903,10 @@ def recupera_extrato_horas_extras(
     )
 
     return extrato_horas_extras.recupera_movimentos_extrato(
-        pagina=pagina, registros=registros, forca_regravacao=forca_regravacao
+        pagina=pagina,
+        registros=registros,
+        forca_regravacao=forca_regravacao,
+        data_adicional_de=data_de,
+        data_adicional_ate=data_ate,
+        matricula_colaborador=matricula_colaborador,
     )

@@ -17,6 +17,7 @@ class MovimentoExtratoHorasExtras(BaseModel):
         examples=["123456"],
         description="Matrícula do colaborador.",
     )
+    nome: str = Field(..., description="Nome do colaborador")
     dia: date = Field(..., description="Data da movimentação de horas no extrato.")
     carga_horaria_dia: Decimal = Field(
         ...,

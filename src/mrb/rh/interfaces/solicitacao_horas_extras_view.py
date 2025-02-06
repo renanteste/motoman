@@ -647,7 +647,6 @@ class SolicitacaoHorasExtras:
                                                         scroll=ft.ScrollMode.ADAPTIVE,
                                                     )
                                                 ],
-                                                auto_scroll=True,
                                             ),
                                         ],
                                     ),

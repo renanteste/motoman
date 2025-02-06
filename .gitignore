@@ -15,3 +15,7 @@ dist/
 # Logs and databases
 *.log
 *.sqlite3
+
+# Pastas de arquivos temporários
+**/temp/
+**/tmp/
