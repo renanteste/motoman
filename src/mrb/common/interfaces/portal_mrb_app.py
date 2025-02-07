@@ -1,5 +1,6 @@
 import flet as ft
 
+from src.mrb.rh.interfaces.extrato_horas_extras_view import ExtratoHorasExtras
 from src.mrb.common.security.opcoes_acesso import OPCOES_MENU_PRINCIPAL
 from src.mrb.rh.interfaces.liberacao_horas_extras_view import LiberacaoHorasExtras
 from src.mrb.common.lib.aviso import Aviso
@@ -29,6 +30,11 @@ class PortalMrbApp:
             botoes_menu_principal=self.botoes_menu_principal,
         )
         self.liberacao_horas_extras = LiberacaoHorasExtras(
+            page=self.page,
+            navigation_bar=self.navigation_bar,
+            botoes_menu_principal=self.botoes_menu_principal,
+        )
+        self.extrato_horas_extras = ExtratoHorasExtras(
             page=self.page,
             navigation_bar=self.navigation_bar,
             botoes_menu_principal=self.botoes_menu_principal,
@@ -80,6 +86,13 @@ class PortalMrbApp:
             )
             self.page.update()
             self.liberacao_horas_extras.carrega_liberacoes()
+
+        elif self.page.route == "/extrato_he":
+            self.page.views.append(self.extrato_horas_extras.get_extrato_horas_extras())
+            self.page.update()
+            self.extrato_horas_extras.recupera_periodos_banco_horas()
+            self.extrato_horas_extras.recupera_colaboradores_extrato()
+            self.extrato_horas_extras.recupera_extrato()
 
         self.page.update()
 
