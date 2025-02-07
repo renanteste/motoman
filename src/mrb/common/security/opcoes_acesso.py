@@ -23,6 +23,15 @@ OPCOES_MENU_PRINCIPAL = [
         "disponivel_menu": True,
     },
     {
+        "codigo_rotina": "EXTRATO_HE",
+        "descricao_menu": "Extrato de Horas Extras",
+        "modulo": "RH",
+        "url_view": "/extrato_he",
+        "icone": ft.Icons.TIMELINE_OUTLINED,
+        "icone_selecionado": ft.Icons.TIMELINE,
+        "disponivel_menu": True,
+    },
+    {
         "codigo_rotina": "CALL_REPORT_APP",
         "descricao_menu": "Api para inclusão de Call Reports",
         "modulo": "Comercial",

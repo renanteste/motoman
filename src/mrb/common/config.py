@@ -45,5 +45,7 @@ class Environment:
     PORTAL_PY_K = "B7lP8ZqJcN3X9rT1K2sV4W5eY6fG0qF3"
     DIR_LOG_APLICACAO = os.path.join(ROOT, "log")
     IMAGES_PATH = os.path.join("src", "mrb", "common", "assets", "images")
+    LOGOTIPO_RELATORIOS = os.path.join(IMAGES_PATH, "logo_yaskawa.png")
     # Substituir com o IP para acesso externo ao servidor
     SERVER_IP = "127.0.0.1"
+    CAMINHO_RELATORIOS = os.path.join("src", "mrb", "common", "temp", "relatorios")

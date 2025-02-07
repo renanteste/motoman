@@ -1,6 +1,7 @@
 from datetime import datetime
 import flet as ft
 
+from src.mrb.common.interfaces.valida_data_digitada import valida_data_digitada
 from src.mrb.common.interfaces.preenche_data import preenche_data
 from src.mrb.rh.interfaces.comunica_api_horas_extras import ComunicaApiHorasExtras
 from src.mrb.rh.interfaces.periodo_apontamento import PeriodoApontamento
@@ -260,6 +261,12 @@ class LiberacaoHorasExtras:
             on_change=lambda e: preenche_data(
                 evento=e, se_data_valida=self.carrega_liberacoes
             ),
+            on_blur=lambda e: valida_data_digitada(
+                evento=e, se_data_valida=self.carrega_liberacoes
+            ),
+            input_filter=ft.InputFilter(
+                allow=True, regex_string=r"^[0-9/]*$", replacement_string=""
+            ),
             width=120,
             hint_text="  /  /    ",
             data="",
@@ -269,6 +276,12 @@ class LiberacaoHorasExtras:
             dense=True,
             on_change=lambda e: preenche_data(
                 evento=e, se_data_valida=self.carrega_liberacoes
+            ),
+            on_blur=lambda e: valida_data_digitada(
+                evento=e, se_data_valida=self.carrega_liberacoes
+            ),
+            input_filter=ft.InputFilter(
+                allow=True, regex_string=r"^[0-9/]*$", replacement_string=""
             ),
             width=120,
             hint_text="  /  /    ",
@@ -339,7 +352,6 @@ class LiberacaoHorasExtras:
                                                         scroll=ft.ScrollMode.ADAPTIVE,
                                                     )
                                                 ],
-                                                auto_scroll=True,
                                             ),
                                         ],
                                     ),

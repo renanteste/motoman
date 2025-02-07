@@ -1,3 +1,4 @@
+import base64
 import secrets
 import string
 import jwt
@@ -362,7 +363,7 @@ async def login_token(
     agente_requisicao = request.headers.get("User-Agent", default="indefinido")
     resultado_autenticacao = AuthResponse()
     conta_usuario = form_data.username.lower()
-    senha_informada = form_data.password
+    senha_informada = base64.b64decode(form_data.password).decode("utf-8")
 
     auth_service = AuthService(db)
     auth_service.autentica_usuario(conta_usuario, senha_informada)
