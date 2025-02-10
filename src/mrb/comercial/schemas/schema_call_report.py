@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 
 
@@ -69,7 +69,6 @@ class CallReport(BaseModel):
     postal_code: Optional[str] = Field(
         None,
         max_length=8,
-        min_length=8,
         examples=["12345678"],
         description="CEP do local da oportunidade, sem traços ou pontos.",
     )
@@ -81,6 +80,39 @@ class CallReport(BaseModel):
     data_transmissao: Optional[datetime] = Field(
         datetime.now(),
         description="Data da transmissão do registro para a API. Não preencher na inserção.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ListagemCallReports(BaseModel):
+    """
+    Estrutura de retorno da listagem de call reports
+    """
+
+    total_de_registros: int = Field(
+        default=0,
+        examples=[100],
+        description="Total de registros existentes para o critério de seleção.",
+    )
+    registros_por_pagina: int = Field(
+        default=0,
+        examples=[10],
+        description="Tamanho definido para a página no retorno atual.",
+    )
+    pagina: int = Field(
+        default=0,
+        examples=[2],
+        description="Número da página retornada.",
+    )
+    total_de_paginas: int = Field(
+        default=0,
+        examples=[20],
+        description="Total de paginas calculado levando em consideração a quantidade de registros e o total de registros por página.",
+    )
+    call_reports: List[CallReport] = Field(
+        default_factory=list,
+        description="Lista contendo a lista de Call Reports recuperadas.",
     )
 
     model_config = ConfigDict(from_attributes=True)
