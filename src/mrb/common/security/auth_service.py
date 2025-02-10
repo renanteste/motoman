@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 from jwt import ExpiredSignatureError, InvalidTokenError
 
+from src.mrb.common.lib.log_httpexception_raise import log_httpexception_raise
 from src.mrb.common.email.email_service import EmailService
 from src.mrb.common.database.db_engine import get_db
 from src.mrb.common.models.model_usuarios_portal import usuarios_szk
@@ -360,22 +361,34 @@ async def login_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ) -> AuthResponse:
-    agente_requisicao = request.headers.get("User-Agent", default="indefinido")
-    resultado_autenticacao = AuthResponse()
-    conta_usuario = form_data.username.lower()
-    senha_informada = base64.b64decode(form_data.password).decode("utf-8")
+    try:
+        agente_requisicao = request.headers.get("User-Agent", default="indefinido")
+        resultado_autenticacao = AuthResponse()
+        conta_usuario = form_data.username.lower()
+        senha_informada = base64.b64decode(form_data.password).decode("utf-8")
 
-    auth_service = AuthService(db)
-    auth_service.autentica_usuario(conta_usuario, senha_informada)
-    if auth_service.usuario_autenticado:
-        resultado_autenticacao.dados_autenticacao = auth_service.autenticacao
-        resultado_autenticacao.dados_usuario = auth_service.dados_usuario
+        auth_service = AuthService(db)
+        auth_service.autentica_usuario(conta_usuario, senha_informada)
+        if auth_service.usuario_autenticado:
+            resultado_autenticacao.dados_autenticacao = auth_service.autenticacao
+            resultado_autenticacao.dados_usuario = auth_service.dados_usuario
 
-    return resultado_autenticacao.model_dump(
-        exclude=(
-            None if agente_requisicao == "PortalPy" else {"dados_usuario": {"acessos"}}
+        return resultado_autenticacao.model_dump(
+            exclude=(
+                None
+                if agente_requisicao == "PortalPy"
+                else {"dados_usuario": {"acessos"}}
+            )
         )
-    )
+
+    except Exception as e:
+        log_httpexception_raise(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            mensagem="Erro inesperado",
+            exc_info=True,
+            nivel_log=1,
+            excecao=e,
+        )
 
 
 def valida_token(token: str = Depends(oauth2_scheme)) -> dict:
