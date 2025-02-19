@@ -6,7 +6,7 @@ from datetime import datetime
 
 class SolicitacaoHorasExtras(BaseModel):
     """
-    Modelo da estrutura de recebimento e retorno de Solicitações de Horas Extras
+    Modelo da estrutura de recebimento e retorno de Solicitações de Banco de Horas
     """
 
     matricula: str = Field(
@@ -17,16 +17,16 @@ class SolicitacaoHorasExtras(BaseModel):
         description="Matrícula do colaborador.",
     )
     data_solicitacao: datetime = Field(
-        ..., description="Data da inclusão da solicitação de horas extras."
+        ..., description="Data da inclusão da solicitação de Banco de Horas."
     )
     data_planejada: datetime = Field(
-        ..., description="Data planejada para realização das horas extras."
+        ..., description="Data planejada para realização das Banco de Horas."
     )
     motivo: str = Field(
         ...,
         max_length=250,
         examples=["Realização de inventário físico"],
-        description="Motivo da solicitação de horas extras.",
+        description="Motivo da solicitação de Banco de Horas.",
     )
     total_horas_planejada: Decimal = Field(
         ...,
@@ -45,7 +45,7 @@ class SolicitacaoHorasExtras(BaseModel):
     id: Optional[int] = Field(
         0,
         examples=[23],
-        description="ID da solicitação de horas extras. Não informar ao inserir novo registro.",
+        description="ID da solicitação de Banco de Horas. Não informar ao inserir novo registro.",
     )
     comentario_aprovador: Optional[str] = Field(
         None,
@@ -69,7 +69,7 @@ class SolicitacaoHorasExtras(BaseModel):
 
 class ListaSolicitacaoHorasExtras(BaseModel):
     """
-    Modelo listagem de retorno de Solicitações de Horas Extras
+    Modelo listagem de retorno de Solicitações de Banco de Horas
     """
 
     total_de_registros: int = Field(0, description="Total de registros encontrados.")
@@ -79,7 +79,7 @@ class ListaSolicitacaoHorasExtras(BaseModel):
     )
     total_de_paginas: int = Field(0, description="Total de páginas encontradas.")
     solicitacoes_horas_extras: List[SolicitacaoHorasExtras] = Field(
-        ..., description="Lista de solicitações de horas extras."
+        ..., description="Lista de solicitações de Banco de Horas."
     )
 
     model_config = ConfigDict(from_attributes=True)

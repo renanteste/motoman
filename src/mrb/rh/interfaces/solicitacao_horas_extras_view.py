@@ -203,7 +203,7 @@ class SolicitacaoHorasExtras:
             dense=True,
             expand=True,
             bgcolor=ft.Colors.WHITE,
-            tooltip="Informe o motivo da necessidade de horas extras",
+            tooltip="Informe o motivo da necessidade de Banco de Horas",
             max_length=250,
             multiline=True,
             on_change=lambda e: self.on_change_motivo(e),
@@ -379,7 +379,6 @@ class SolicitacaoHorasExtras:
             ).exibir()
             == 0
         ):
-            auth_session = AuthSession()
             if dados_solicitacao:
                 # Alteracao
                 solicitacao_horas_extras = dados_solicitacao
@@ -387,9 +386,9 @@ class SolicitacaoHorasExtras:
             else:
                 # Inclusao
                 solicitacao_horas_extras = {}
-                solicitacao_horas_extras["matricula"] = auth_session.user_data[
-                    "dados_cadastro_recursos"
-                ]["matricula"]
+                solicitacao_horas_extras["matricula"] = AuthSession(
+                    self.page
+                ).user_data()["dados_cadastro_recursos"]["matricula"]
                 solicitacao_horas_extras["data_solicitacao"] = (
                     datetime.now().isoformat()
                 )
@@ -523,7 +522,7 @@ class SolicitacaoHorasExtras:
 
     def on_change_motivo(self, e):
         """
-        Método remove <enter> do motivo da necessidade de horas extras
+        Método remove <enter> do motivo da necessidade de Banco de Horas
         """
         e.control.value = e.control.value.replace("\n", "")
         e.control.update()
@@ -585,7 +584,7 @@ class SolicitacaoHorasExtras:
 
     def get_solicitacao_horas_extras(self) -> ft.View:
         """
-        Montagem e retorno da view com a tela de solicitações de horas extras
+        Montagem e retorno da view com a tela de solicitações de Banco de Horas
         """
         conteudo_solicitacao = ft.Container(
             padding=0,
@@ -680,7 +679,7 @@ class SolicitacaoHorasExtras:
             route="/solicita_he",
             padding=0,
             controls=[
-                self.navigation_bar.get_navigation_bar("Solicitações Horas Extras"),
+                self.navigation_bar.get_navigation_bar("Solicitações Banco de Horas"),
                 ft.Row(
                     controls=[
                         self.botoes_menu_principal.get_botoes_menu_principal(),
@@ -700,12 +699,13 @@ class SolicitacaoHorasExtras:
 
     def carrega_solicitacoes(self):
         """
-        Método para recuperação dos dados de solicitações de horas extras da api.
+        Método para recuperação dos dados de solicitações de Banco de Horas da api.
         """
-        auth_session = AuthSession()
         pagina_destino = self.pagina_atual_browse if self.pagina_atual_browse > 0 else 1
         parametros_requisicao = {
-            "matricula": auth_session.user_data["dados_cadastro_recursos"]["matricula"],
+            "matricula": AuthSession(self.page).user_data()["dados_cadastro_recursos"][
+                "matricula"
+            ],
             "pagina": str(pagina_destino),
         }
 
@@ -821,7 +821,9 @@ class SolicitacaoHorasExtras:
             self.page.update()
 
     def atualiza_periodo_apontamento(self):
-        self.periodo_apontamento.obtem_periodo_apontamento()
+        self.periodo_apontamento.obtem_periodo_apontamento(
+            AuthSession(self.page).token()
+        )
         if self.periodo_apontamento.erro_requisicao:
             self.texto_periodo_em_vigor.value = self.periodo_apontamento.erro_requisicao
 
@@ -1035,7 +1037,7 @@ class SolicitacaoHorasExtras:
 
     def interface_edicao_hora_extra(self, dados_solicitacao: dict = None):
         """
-        Controla a abertura da tela de edição das solicitações de horas extras.
+        Controla a abertura da tela de edição das solicitações de Banco de Horas.
         \n
         Se o argumento 'dados_solicitacao' for enviado, é um processo de alteração. Caso contrário, trata-se de inclusão.
         """
@@ -1054,8 +1056,7 @@ class SolicitacaoHorasExtras:
         else:
             self.titulo_painel_edicao.value = "Dados da Nova Solicitação"
 
-        auth_session = AuthSession()
-        self.matricula_painel_edicao.value = auth_session.user_data[
+        self.matricula_painel_edicao.value = AuthSession().user_data()[
             "dados_cadastro_recursos"
         ]["matricula"]
 

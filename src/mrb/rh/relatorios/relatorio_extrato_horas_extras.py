@@ -123,7 +123,7 @@ def imprime_cabecalho_rodape(
     pdf.cell(0, 10, data_emissao, align="R")
     pdf.set_x(0)
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Extrato de Horas Extras", 0, 1, align="C")
+    pdf.cell(0, 10, "Extrato de Banco de Horas", 0, 1, align="C")
     pdf.set_x(0)
     pdf.set_font("Arial", "B", 10)
     pdf.cell(

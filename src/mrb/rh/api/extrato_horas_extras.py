@@ -80,7 +80,7 @@ class CalculaExtratoHorasExtras:
             .conteudo_parametro
         )
 
-        # Recupera o período de horas extras
+        # Recupera o período de Banco de Horas
         self.recupera_periodos(codigo_periodo)
 
         # Monta a tabela de datas para o período com a carga horária e feriados
@@ -141,7 +141,7 @@ class CalculaExtratoHorasExtras:
             log_httpexception_raise(
                 status_code=status.HTTP_404_NOT_FOUND,
                 mensagem="""
-                            Não localizado o último período de acúmulo de horas extras na tabela
+                            Não localizado o último período de acúmulo de Banco de Horas na tabela
                             'Z0' do arquivo 'SX5' no ERP Protheus!
                         """,
                 exc_info=True,
@@ -319,9 +319,14 @@ class CalculaExtratoHorasExtras:
                     zzu.c.ZZU_DATA,
                 )
             )
+            print(
+                query.compile(
+                    dialect=mssql.dialect(), compile_kwargs={"literal_binds": True}
+                )
+            )
             resultado_apontamentos = self.db.execute(query).fetchall()
             if resultado_apontamentos:
-                # Recupera as aprovações de horas extras para os funcionários no período
+                # Recupera as aprovações de Banco de Horas para os funcionários no período
                 query = (
                     Select(
                         SolicitacoesHorasExtras.matricula,
@@ -353,7 +358,7 @@ class CalculaExtratoHorasExtras:
                 )
                 resultado_solicitacoes_aprovadas = self.db.execute(query).fetchall()
 
-            # Recupera o consumo das horas extras do sigapon
+            # Recupera o consumo das Banco de Horas do sigapon
             query = union_all(
                 Select(
                     spc.c.PC_MAT,
@@ -727,7 +732,7 @@ def lista_colaboradores_extrato(
     codigo_periodo: Union[str, None] = Query(
         default=None,
         title="Código do Período",
-        description="Código que identifica um período específico para consulta do extrato de horas extras.",
+        description="Código que identifica um período específico para consulta do extrato de Banco de Horas.",
         examples=["000001", "000015"],
     ),
     pagina: int = Query(
@@ -859,7 +864,7 @@ def recupera_extrato_horas_extras(
     codigo_periodo: str = Query(
         default=None,
         title="Código do Período",
-        description="Código que identifica um período específico para consulta do extrato de horas extras.",
+        description="Código que identifica um período específico para consulta do extrato de Banco de Horas.",
         examples=["000001", "000015"],
     ),
     pagina: int = Query(

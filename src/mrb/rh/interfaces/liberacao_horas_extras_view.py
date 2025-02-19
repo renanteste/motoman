@@ -17,7 +17,7 @@ from src.mrb.common.interfaces.navigation_bar import NavigationBar
 
 class LiberacaoHorasExtras:
     """
-    Classe de montagem e controle da view de liberação de horas extras.
+    Classe de montagem e controle da view de liberação de Banco de Horas.
     """
 
     def __init__(
@@ -381,7 +381,7 @@ class LiberacaoHorasExtras:
             padding=0,
             controls=[
                 self.navigation_bar.get_navigation_bar(
-                    "Aprovação de Solicitações de Horas Extras"
+                    "Aprovação de Solicitações de Banco de Horas"
                 ),
                 ft.Row(
                     controls=[
@@ -405,14 +405,13 @@ class LiberacaoHorasExtras:
         Monta os parâmetros para requisição da lista de liberações de acordo com o filtro e
         alimenta as linhas do browse da tela principal de liberação.
         """
-        auth_session = AuthSession()
         pagina_destino = (
             self.paginacao.pagina_atual if self.paginacao.pagina_atual > 0 else 1
         )
         parametros_requisicao = {
-            "matricula_aprovador": auth_session.user_data["dados_cadastro_recursos"][
-                "matricula"
-            ],
+            "matricula_aprovador": AuthSession(self.page).user_data()[
+                "dados_cadastro_recursos"
+            ]["matricula"],
             "pagina": str(pagina_destino),
         }
 
@@ -536,7 +535,9 @@ class LiberacaoHorasExtras:
         """
         Método atualiza os dados do período de apontamento em aberto
         """
-        self.periodo_apontamento.obtem_periodo_apontamento()
+        self.periodo_apontamento.obtem_periodo_apontamento(
+            AuthSession(self.page).token()
+        )
         if self.periodo_apontamento.erro_requisicao:
             self.texto_periodo_em_vigor.value = self.periodo_apontamento.erro_requisicao
 
@@ -786,7 +787,6 @@ class LiberacaoHorasExtras:
         \n
         'liberar': se True, processo de liberação; se False, rejeição.
         """
-        auth_session = AuthSession()
         self.titulo_painel_liberacao.value = (
             "Aprovação" if liberar else "Rejeição"
         ) + f" da Solicitação Id: {dados_liberacao['id']}"
@@ -811,7 +811,7 @@ class LiberacaoHorasExtras:
             else iso_to_date(dados_liberacao["data_aprovacao"])
         )
         self.matricula_aprovador_painel_liberacao.value = (
-            auth_session.user_data["dados_cadastro_recursos"]["matricula"]
+            AuthSession(self.page).user_data()["dados_cadastro_recursos"]["matricula"]
             if liberar
             else dados_liberacao["matricula_aprovador"]
         )
