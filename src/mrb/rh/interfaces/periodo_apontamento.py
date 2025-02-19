@@ -3,7 +3,6 @@ from datetime import date, datetime
 import requests
 
 from src.mrb.common.config import ApiConfiguration
-from src.mrb.common.interfaces.auth.auth_session import AuthSession
 
 
 class PeriodoApontamento:
@@ -12,7 +11,7 @@ class PeriodoApontamento:
         self.final_periodo: date
         self.erro_requisicao: str
 
-    def obtem_periodo_apontamento(self) -> tuple[date, date]:
+    def obtem_periodo_apontamento(self, token: str) -> tuple[date, date]:
         """
         Obtém o período de apontamento vigente do ponto eletrônico do Protheus via API
         \n
@@ -21,9 +20,8 @@ class PeriodoApontamento:
         Em caso de falha na requisição, retorna nulos no lugar
         das datas e o erro fica armazenado na propriedade 'erro_requisicao'
         """
-        auth_session = AuthSession()
         response_periodo_apontamento = requests.get(
-            headers={"Authorization": f"Bearer {auth_session.token}"},
+            headers={"Authorization": f"Bearer {token}"},
             url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/recupera_parametro_sx6/MV_PONMES",
         )
         if response_periodo_apontamento.status_code == 200:
@@ -44,20 +42,3 @@ class PeriodoApontamento:
             self.final_periodo = None
 
         return (self.inicio_periodo, self.final_periodo)
-
-    def verifica_data_periodo(self, data_informada: date) -> bool:
-        """
-        Retorna True se a data informada no argumento 'data_informada' está no período de apontamento vigente
-        """
-        self.obtem_periodo_apontamento()
-        data_periodo = False
-
-        if (
-            self.inicio_periodo
-            and self.final_periodo
-            and data_informada >= self.inicio_periodo
-            and data_informada <= self.final_periodo
-        ):
-            data_periodo = True
-
-        return data_periodo

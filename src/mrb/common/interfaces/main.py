@@ -16,12 +16,19 @@ def main(page: ft.Page):
         or "BLUE_300"
     )
 
+    auth_data = AuthSession(page).get_auth_data()
+
     portal_mrb_app = PortalMrbApp(page)
 
     page.on_route_change = portal_mrb_app.route_change
     page.on_view_pop = portal_mrb_app.view_pop
     page.on_disconnect = portal_mrb_app.on_disconnect
-    page.go("/login")
+
+    if auth_data["user_data"]:
+        page.go("/menu_principal")
+
+    else:
+        page.go("/login")
 
 
 ft.app(target=main, view=ft.AppView.WEB_BROWSER)

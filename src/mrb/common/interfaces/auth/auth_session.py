@@ -1,17 +1,29 @@
-class AuthSession:
-    _instance = None
+import flet as ft
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(AuthSession, cls).__new__(cls)
-            cls._instance.token = None
-            cls._instance.user_data = None
-        return cls._instance
+
+class AuthSession:
+    def __init__(self, page: ft.Page):
+        self.page = page
 
     def set_auth_data(self, token, user_data):
-        self.token = token
-        self.user_data = user_data
+        self.page.session.set("token", token)
+        self.page.session.set("user_data", user_data)
+
+    def get_auth_data(self):
+        return {
+            "token": self.page.session.get("token"),
+            "user_data": self.page.session.get("user_data"),
+        }
 
     def clear_auth_data(self):
-        self.token = None
-        self.user_data = None
+        if self.page.session.get("token") is not None:
+            self.page.session.remove("token")
+
+        if self.page.session.get("user_data") is not None:
+            self.page.session.remove("user_data")
+
+    def token(self) -> str:
+        return self.get_auth_data()["token"]
+
+    def user_data(self) -> dict:
+        return self.get_auth_data()["user_data"]

@@ -52,7 +52,7 @@ class AuthService:
     def gera_token(self) -> DadosAutenticacao:
         dados_autenticacao = DadosAutenticacao()
         try:
-            dados_autenticacao.validade = datetime.now(pytz.UTC) + timedelta(minutes=15)
+            dados_autenticacao.validade = datetime.now(pytz.UTC) + timedelta(minutes=30)
             payload = {
                 "sub": self.dados_usuario.id_usuario,
                 "exp": dados_autenticacao.validade,

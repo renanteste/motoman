@@ -12,9 +12,8 @@ class ComunicaApiHorasExtras:
 
     def envia_alteracao_solicitacao(self, dados_solicitacao: dict) -> bool:
         retorno_atualizacao = True
-        auth_session = AuthSession()
         response_solicitacoes = requests.put(
-            headers={"Authorization": f"Bearer {auth_session.token}"},
+            headers={"Authorization": f"Bearer {AuthSession(self.page).token()}"},
             url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/solicitacao_horas_extras",
             json=dados_solicitacao,
         )
@@ -33,11 +32,10 @@ class ComunicaApiHorasExtras:
         return retorno_atualizacao
 
     def envia_inclusao_solicitacao(self, solicitacao_horas_extras: dict) -> bool:
-        auth_session = AuthSession()
         retorno_envio = False
 
         response_solicitacoes = requests.post(
-            headers={"Authorization": f"Bearer {auth_session.token}"},
+            headers={"Authorization": f"Bearer {AuthSession(self.page).token()}"},
             url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/solicitacao_horas_extras",
             json=solicitacao_horas_extras,
         )
@@ -78,9 +76,8 @@ class ComunicaApiHorasExtras:
             == 0
         )
         if confirma_apagar_liberacao:
-            auth_session = AuthSession()
             response_solicitacoes = requests.delete(
-                headers={"Authorization": f"Bearer {auth_session.token}"},
+                headers={"Authorization": f"Bearer {AuthSession(self.page).token()}"},
                 url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/solicitacao_horas_extras/{id_solicitacao}",
             )
             if (
@@ -105,9 +102,8 @@ class ComunicaApiHorasExtras:
 
     def recupera_solicitacoes(self, parametros_requisicao: dict, end_point: str):
         retorno_solicitacoes = None
-        auth_session = AuthSession()
         response_solicitacoes = requests.get(
-            headers={"Authorization": f"Bearer {auth_session.token}"},
+            headers={"Authorization": f"Bearer {AuthSession(self.page).token()}"},
             url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/{end_point}",
             params=parametros_requisicao,
         )

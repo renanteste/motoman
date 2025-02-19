@@ -56,7 +56,7 @@ class ExtratoHorasExtras:
         self.seletor_colaborador = ft.Dropdown(
             width=370,
             height=40,
-            label="Fitrar colaborador",
+            label="Filtrar colaborador",
             dense=True,
             options=[
                 ft.dropdown.Option(
@@ -118,14 +118,15 @@ class ExtratoHorasExtras:
         # Browse extrato
         self.paginacao = Paginacao(lambda _: self.recupera_extrato())
 
-    def limpar_filtros(self):
+    def limpar_filtros(self, recupera_extrato: bool = True):
         self.campo_data_de.value = ""
         self.campo_data_de.data = ""
         self.campo_data_ate.value = ""
         self.campo_data_ate.data = ""
         self.seletor_colaborador.value = ""
         self.botao_limpar_filtros.disabled = True
-        self.recupera_extrato()
+        if recupera_extrato:
+            self.recupera_extrato()
 
     def on_change_colaborador(self, seletor_colaborador: ft.Dropdown):
         if seletor_colaborador.value == "-":
@@ -145,9 +146,15 @@ class ExtratoHorasExtras:
             seletor_periodos.data["chave_selecionada"] = seletor_periodos.value
             self.recupera_extrato()
 
+            # Se trocou o período, limpa os filtros e reinicia os dados da lista de colaboradores
+            self.limpar_filtros(recupera_extrato=False)
+            self.seletor_colaborador.data = {"pagina_atual": 0, "total_paginas": None}
+            self.recupera_colaboradores_extrato(self.seletor_periodos.value)
+
     def recupera_extrato(self):
-        auth_session = AuthSession()
-        matricula_lider = auth_session.user_data["dados_cadastro_recursos"]["matricula"]
+        matricula_lider = AuthSession(self.page).user_data()["dados_cadastro_recursos"][
+            "matricula"
+        ]
 
         # Informa a página de destino da requisição
         parametros_requisicao = {
@@ -209,23 +216,28 @@ class ExtratoHorasExtras:
 
             self.page.update()
 
-    def recupera_colaboradores_extrato(self):
-        auth_session = AuthSession()
-        matricula_lider = auth_session.user_data["dados_cadastro_recursos"]["matricula"]
+    def recupera_colaboradores_extrato(self, codigo_periodo: str = None):
+        matricula_lider = AuthSession(self.page).user_data()["dados_cadastro_recursos"][
+            "matricula"
+        ]
         if (
             not self.seletor_colaborador.data["total_paginas"]
             or self.seletor_colaborador.data["pagina_atual"]
             < self.seletor_colaborador.data["total_paginas"]
         ):
             self.seletor_colaborador.data["pagina_atual"] += 1
+            parametros_requisicao = {
+                "pagina": self.seletor_colaborador.data["pagina_atual"],
+                "registros": 100,
+            }
+            if codigo_periodo:
+                parametros_requisicao["codigo_periodo"] = codigo_periodo
+
             retorno_colaboradores = ComunicaApiHorasExtras(
                 self.page
             ).recupera_solicitacoes(
                 end_point=f"/extrato_he/colaboradores/{matricula_lider}",
-                parametros_requisicao={
-                    "pagina": self.seletor_colaborador.data["pagina_atual"],
-                    "registros": 100,
-                },
+                parametros_requisicao=parametros_requisicao,
             )
 
             if retorno_colaboradores:
@@ -388,9 +400,7 @@ class ExtratoHorasExtras:
             route="/extrato_he",
             padding=0,
             controls=[
-                self.navigation_bar.get_navigation_bar(
-                    "Consulta ao Extrato de Horas Extras"
-                ),
+                self.navigation_bar.get_navigation_bar("Consulta ao Banco de Horas"),
                 ft.Row(
                     controls=[
                         self.botoes_menu_principal.get_botoes_menu_principal(),
@@ -434,10 +444,9 @@ class ExtratoHorasExtras:
             ).exibir()
 
         else:
-            auth_session = AuthSession()
-            matricula_lider = auth_session.user_data["dados_cadastro_recursos"][
-                "matricula"
-            ]
+            matricula_lider = AuthSession(self.page).user_data()[
+                "dados_cadastro_recursos"
+            ]["matricula"]
             retorno_relatorio = ComunicaApiHorasExtras(self.page).recupera_solicitacoes(
                 end_point=f"/extrato_he/relatorio/{self.seletor_periodos.value}/{matricula_lider}",
                 parametros_requisicao={
@@ -456,7 +465,7 @@ class ExtratoHorasExtras:
                 file_picker.save_file(
                     file_type=[ft.FilePickerFileType.CUSTOM],
                     allowed_extensions=["pdf"],
-                    dialog_title="Salvar relatório de horas extras",
+                    dialog_title="Salvar relatório de Banco de Horas",
                     initial_directory="C:\\Users\\Public\\Documents",
                     file_name=f"relatorio_extrato_he_{self.seletor_periodos.value}_{self.seletor_colaborador.value.strip()}.pdf",
                 )

@@ -502,7 +502,7 @@ def altera_solicitacao_horas_extras(
     db: Session = Depends(get_db),
 ) -> List[SolicitacaoHE]:
     """
-    Altera solicitações de horas extras.
+    Altera solicitações de Banco de Horas.
     <p>Espera receber no header o token de autenticação em base 64 que irá identificar o usuário.
     <p>O body pode conter um registro ou uma lista.
 
@@ -528,7 +528,7 @@ def nova_solicitacao_horas_extras(
     db: Session = Depends(get_db),
 ) -> List[SolicitacaoHE]:
     """
-    Insere nova solicitação de horas extras.
+    Insere nova solicitação de Banco de Horas.
     <p>Espera receber no header o token de autenticação em base 64 que irá identificar o usuário.
     <p>O body pode conter um registro ou uma lista.
 
@@ -555,7 +555,7 @@ def apaga_solicitacao_horas_extras(
     id: int, payload: dict = Depends(valida_token), db: Session = Depends(get_db)
 ):
     """
-    Exclui solicitação de horas extras enviada na URL.
+    Exclui solicitação de Banco de Horas enviada na URL.
     <p>Espera receber no header o token de autenticação em base 64 que irá identificar o usuário.
 
     """
@@ -605,7 +605,7 @@ def lista_solicitacoes_horas_extras(
     data_ate: Union[date, None] = None,
 ) -> ListaSolicitacaoHorasExtras:
     """
-    Retorna lista de solicitações de horas extras.
+    Retorna lista de solicitações de Banco de Horas.
     <p>Espera receber no header o token de autenticação em base 64 que irá identificar o usuário.
     <p>Aceita receber via querystrings os parâmetros:
     <p><b>matricula</b>: código da matrícula para seleção dos registros
@@ -632,7 +632,7 @@ def recupera_solicitacao_hora_extra(
     id: int, payload: dict = Depends(valida_token), db: Session = Depends(get_db)
 ) -> SolicitacaoHE:
     """
-    Retorna solicitação de horas extras enviada na URL.
+    Retorna solicitação de Banco de Horas enviada na URL.
     <p>Espera receber no header o token de autenticação em base 64 que irá identificar o usuário.
 
     """
