@@ -6,13 +6,13 @@ from datetime import datetime
 
 class LiberacaoHorasExtras(BaseModel):
     """
-    Modelo da estrutura de recebimento e retorno de Liberações de Horas Extras
+    Modelo da estrutura de recebimento e retorno de Liberações de Banco de Horas
     """
 
     id: int = Field(
         ...,
         examples=[23],
-        description="ID da solicitação de liberação de horas extras.",
+        description="ID da solicitação de liberação de Banco de Horas.",
     )
     matricula: str = Field(
         ..., examples=["123456"], description="Matrícula do colaborador."
@@ -21,15 +21,15 @@ class LiberacaoHorasExtras(BaseModel):
         ..., examples=["João da Silva"], description="Nome do colaborador."
     )
     data_solicitacao: datetime = Field(
-        ..., description="Data da solicitação de liberação de horas extras."
+        ..., description="Data da solicitação de liberação de Banco de Horas."
     )
     data_planejada: datetime = Field(
-        ..., description="Data planejada para realização das horas extras."
+        ..., description="Data planejada para realização das Banco de Horas."
     )
     motivo: str = Field(
         ...,
         examples=["Realização de inventário físico"],
-        description="Motivo da solicitação de liberação de horas extras.",
+        description="Motivo da solicitação de liberação de Banco de Horas.",
     )
     total_horas_planejada: Decimal = Field(
         ..., max_digits=4, decimal_places=2, description="Total de horas planejadas."
@@ -58,7 +58,7 @@ class LiberacaoHorasExtras(BaseModel):
 
 class ListaLiberacaoHorasExtras(BaseModel):
     """
-    Modelo listagem de retorno de Liberações de Horas Extras
+    Modelo listagem de retorno de Liberações de Banco de Horas
     """
 
     total_de_registros: int = Field(0, description="Total de registros encontrados.")
@@ -68,7 +68,7 @@ class ListaLiberacaoHorasExtras(BaseModel):
     )
     total_de_paginas: int = Field(0, description="Total de páginas encontradas.")
     liberacoes_horas_extras: List[LiberacaoHorasExtras] = Field(
-        None, description="Lista de liberações de horas extras."
+        None, description="Lista de liberações de Banco de Horas."
     )
 
     model_config = ConfigDict(from_attributes=True)

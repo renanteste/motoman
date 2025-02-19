@@ -6,7 +6,7 @@ from src.mrb.common.schemas.schema_opcoes_portal import OpcaoPortal
 OPCOES_MENU_PRINCIPAL = [
     {
         "codigo_rotina": "SOLICITA_HE",
-        "descricao_menu": "Solicitações Horas Extras",
+        "descricao_menu": "Solicitações Banco de Horas",
         "modulo": "RH",
         "url_view": "/solicita_he",
         "icone": ft.Icons.ADD_ALARM_OUTLINED,
@@ -15,7 +15,7 @@ OPCOES_MENU_PRINCIPAL = [
     },
     {
         "codigo_rotina": "APROVA_HE",
-        "descricao_menu": "Aprovação Horas Extras",
+        "descricao_menu": "Aprovação Banco de Horas",
         "modulo": "RH",
         "url_view": "/aprova_he",
         "icone": ft.Icons.ACCESS_ALARM_OUTLINED,
@@ -24,7 +24,7 @@ OPCOES_MENU_PRINCIPAL = [
     },
     {
         "codigo_rotina": "EXTRATO_HE",
-        "descricao_menu": "Extrato de Horas Extras",
+        "descricao_menu": "Extrato de Banco de Horas",
         "modulo": "RH",
         "url_view": "/extrato_he",
         "icone": ft.Icons.TIMELINE_OUTLINED,

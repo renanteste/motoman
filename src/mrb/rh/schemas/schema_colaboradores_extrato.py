@@ -26,7 +26,7 @@ class ListaColaboradorExtrato(BaseModel):
         description="Matrícula do líder dos colaboradores com horas listadas no extrato.",
     )
     codigo_do_periodo: str = Field(
-        ..., description="Código do período de acúmulo de horas extras."
+        ..., description="Código do período de acúmulo de Banco de Horas."
     )
     data_inicial_movimentos: date = Field(
         ..., description="Data inicial do período dos movimentos."

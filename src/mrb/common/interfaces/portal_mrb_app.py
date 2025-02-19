@@ -17,7 +17,6 @@ class PortalMrbApp:
     def __init__(self, page: ft.Page) -> None:
         self.navigation_bar = NavigationBar("Login", page=page)
         self.page = page
-        self.auth_session = AuthSession()
         self.login_view = Login(self.page, navigation_bar=self.navigation_bar)
         self.botoes_menu_principal = BotoesMenuPrincipal(self.page)
         self.solicitacao_horas_extras = SolicitacaoHorasExtras(
@@ -51,11 +50,11 @@ class PortalMrbApp:
             self.page.go(rota_anterior)
 
         self.page.views.clear()
-        if not self.auth_session.user_data and self.page.route != "/login":
+        if not AuthSession(self.page).user_data() and self.page.route != "/login":
             self.page.go("/login")
 
         if self.page.route == "/login":
-            if self.auth_session.user_data:
+            if AuthSession(self.page).user_data():
                 self.page.go(rota_anterior)
             else:
                 self.page.views.append(self.login_view.get_login_view())
@@ -66,7 +65,7 @@ class PortalMrbApp:
             )
             self.page.views.append(
                 self.menu_principal_view.get_menu_principal_view(
-                    nome_usuario=self.auth_session.user_data["nome_usuario"]
+                    nome_usuario=AuthSession(self.page).user_data()["nome_usuario"]
                 )
             )
 
@@ -128,7 +127,7 @@ class PortalMrbApp:
         if (
             acessar
             and not codigo_rotina
-            in self.auth_session.user_data["acessos"]["lista_acesso"]
+            in AuthSession(self.page).user_data()["acessos"]["lista_acesso"]
         ):
             Aviso(
                 self.page,
@@ -140,7 +139,7 @@ class PortalMrbApp:
         return acessar
 
     def logout(self):
-        self.auth_session.clear_auth_data()
+        AuthSession(self.page).clear_auth_data()
         self.login_view.nome_usuario_input.value = None
         self.login_view.senha_input.value = None
         self.navigation_bar.mensagem_login()

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class MovimentoExtratoHorasExtras(BaseModel):
     """
-    Modelo do registro de movimento do Extrato de Horas Extras.
+    Modelo do registro de movimento do Extrato de Banco de Horas.
     """
 
     id: int = Field(..., examples=[99], description="Identificador único do registro.")
@@ -45,7 +45,7 @@ class MovimentoExtratoHorasExtras(BaseModel):
         max_digits=4,
         decimal_places=2,
         examples=[2.5],
-        description="Total de horas extras aprovadas pelo Líder para a data.",
+        description="Total de Banco de Horas aprovadas pelo Líder para a data.",
     )
     quantidade_horas_computadas: Decimal = Field(
         ...,
@@ -65,7 +65,7 @@ class MovimentoExtratoHorasExtras(BaseModel):
 
 class ExtratoHorasExtras(BaseModel):
     """
-    Modelo do retorno do extrato de horas extras.
+    Modelo do retorno do extrato de Banco de Horas.
     """
 
     matricula_do_lider: str = Field(
@@ -73,7 +73,7 @@ class ExtratoHorasExtras(BaseModel):
         description="Matrícula do líder dos colaboradores com horas listadas no extrato.",
     )
     codigo_do_periodo: str = Field(
-        ..., description="Código do período de acúmulo de horas extras."
+        ..., description="Código do período de acúmulo de Banco de Horas."
     )
     data_inicial_movimentos: date = Field(
         ..., description="Data inicial do período dos movimentos."

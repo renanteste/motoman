@@ -12,7 +12,7 @@ class OpcaoPortal(BaseModel):
     )
     descricao_menu: str = Field(
         ...,
-        examples=["Solicitações Horas Extras", "Aprovação Horas Extras"],
+        examples=["Solicitações Banco de Horas", "Aprovação Banco de Horas"],
         description="Descrição da rotina quando disponível no menu do portal.",
     )
     modulo: str = Field(

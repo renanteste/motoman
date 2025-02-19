@@ -77,8 +77,7 @@ class Login:
 
             aviso.exibir()
             if self.dados_autenticacao:
-                auth_data = AuthSession()
-                auth_data.set_auth_data(
+                AuthSession(self.page).set_auth_data(
                     self.dados_autenticacao["dados_autenticacao"]["token"],
                     self.dados_autenticacao["dados_usuario"],
                 )
@@ -161,4 +160,4 @@ class Login:
 
         if not campo_usuario.value.strip() == "" and not "@" in campo_usuario.value:
             campo_usuario.value += "@motoman.com.br"
-            campo_usuario.update()
+            self.page.update()
