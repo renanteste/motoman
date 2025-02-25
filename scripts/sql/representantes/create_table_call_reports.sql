@@ -23,7 +23,8 @@ CREATE TABLE call_reports (
     sub_thoroughfare VARCHAR(50),
     tipo_visita VARCHAR(50),
     data_transmissao DATETIME,
-    data_erp DATETIME
+    data_erp DATETIME,
+    chave_visita VARCHAR(50)
 );
 CREATE UNIQUE INDEX idx_call_reports_id ON call_reports (id);
 CREATE INDEX idx_call_reports_cnpj_representante_cnpj_prospect_data_visita 

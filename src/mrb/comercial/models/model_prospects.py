@@ -26,3 +26,4 @@ class Prospects(Base):
     celular = Column(String(15), nullable=False)
     data_inclusao = Column(DateTime, nullable=False)
     data_transmissao = Column(DateTime, default=datetime.now)
+    chave_prospect = Column(String(50), nullable=True)
