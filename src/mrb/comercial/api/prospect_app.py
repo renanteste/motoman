@@ -131,6 +131,7 @@ class ProspectApp:
                     sa1.c.A1_XRAMAL,
                     sa1.c.A1_XCELULA,
                     sa1.c.A1_DTCAD,
+                    sa1.c.A1_XKPRAPP,
                 )
                 .join(
                     sa1,
@@ -188,6 +189,7 @@ class ProspectApp:
                         complemento=registro.A1_COMPLEM.strip(),
                         ramal=registro.A1_XRAMAL,
                         cnpj_representante=self.cnpj_representante,
+                        chave_prospect=registro.A1_XKPRAPP,
                     )
                 )
 

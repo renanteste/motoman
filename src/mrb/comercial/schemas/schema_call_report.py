@@ -81,6 +81,11 @@ class CallReport(BaseModel):
         datetime.now(),
         description="Data da transmissão do registro para a API. Não preencher na inserção.",
     )
+    chave_visita: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="Chave que irá identificar o registro a partir do aplicativo de origem da informação.",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

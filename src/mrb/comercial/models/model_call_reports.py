@@ -32,3 +32,4 @@ class CallReports(Base):
     sub_thoroughfare = Column(String(50), nullable=True)
     tipo_visita = Column(String(50), nullable=True)
     data_transmissao = Column(DateTime, default=datetime.now)
+    chave_visita = Column(String(50), nullable=True)

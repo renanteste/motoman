@@ -96,6 +96,7 @@ class CallReportApp:
                     z03.c.Z03_SUBLOC.label("sub_locality"),
                     z03.c.Z03_SUBTHO.label("sub_thoroughfare"),
                     z03.c.Z03_TIPOVI.label("tipo_visita"),
+                    z03.c.Z03_KAPLIC.label("chave_visita"),
                 )
                 .join(
                     sa3,
@@ -149,7 +150,11 @@ class CallReportApp:
                 listagem_call_reports.call_reports = [
                     CallReport.model_validate(
                         {
-                            chave: valor.strip() if isinstance(valor, str) else valor
+                            chave: (
+                                valor.decode("windows-1252").strip("\x00").rstrip()
+                                if isinstance(valor, bytes)
+                                else valor.rstrip() if isinstance(valor, str) else valor
+                            )
                             for chave, valor in linha._mapping.items()
                         }
                     )

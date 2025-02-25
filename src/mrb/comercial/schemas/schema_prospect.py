@@ -71,6 +71,12 @@ class Prospect(BaseModel):
         description="Celular do contato.",
     )
     data_inclusao: datetime = Field(..., description="Data de inclusão do Prospect.")
+    chave_prospect: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Chave que irá identificar o registro a partir do aplicativo de origem da informação.",
+    )
     id: Optional[int] = Field(
         None,
         examples=[1],
@@ -185,6 +191,11 @@ class GetProspect(BaseModel):
         examples=["12345678000112"],
         description="""CNPJ do representante que está inserindo o Prospect, sem traços ou pontos. 
                         Preenchido automaticamente pela autenticação na API.""",
+    )
+    chave_prospect: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="Chave que irá identificar o registro a partir do aplicativo de origem da informação.",
     )
 
     model_config = ConfigDict(from_attributes=True)
