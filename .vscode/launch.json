@@ -28,6 +28,20 @@
 			"env": {
 				"PYTHONPATH": "C:/Users/mmcol/OneDrive/Projetos/Motoman/portalpy" // Define o diretório raiz do projeto para Python
 			}
+		},
+		{
+			"name": "Flet: PortalPy",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "C:/Users/mmcol/OneDrive/Projetos/Motoman/portalpy/venv/Scripts/flet.exe",
+			"args": [
+				"run",
+				"-r",
+				"src/mrb/common/interfaces/main.py",
+				"-p=8550"
+			],
+			"console": "integratedTerminal",
+			"justMyCode": false
 		}
 	]
 }
