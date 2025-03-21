@@ -830,6 +830,12 @@ def gera_relatorio_horas_extras(
         description="Parâmetro opcional contendo a matrícula de um único colaborador para gerar o relatório.",
         examples=["123456"],
     ),
+    nome_arquivo_resultado: str = Query(
+        default=None,
+        title="Nome do arquivo de resultado",
+        description="Parâmetro opcional que determina qual será o nome do arquivo pdf gerado após a impressão.",
+        examples=["relatorio extrato de banco de horas"],
+    ),
 ):
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
@@ -842,16 +848,23 @@ def gera_relatorio_horas_extras(
         codigo_periodo=codigo_periodo,
         matricula_lider=matricula_lider,
         matricula_colaborador=matricula_colaborador,
+        nome_arquivo=nome_arquivo_resultado,
     )
 
     if relatorio:
-        return FileResponse(
-            relatorio, media_type="application/pdf", filename=relatorio.split("/")[-1]
-        )
+        if nome_arquivo_resultado:
+            return {"nome_arquivo": relatorio.split("/")[-1].replace(".pdf", "")}
+
+        else:
+            return FileResponse(
+                relatorio,
+                media_type="application/pdf",
+                filename=relatorio.split("/")[-1],
+            )
 
     else:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_204_NO_CONTENT,
             detail="Dados não localizados para impressão",
         )
 

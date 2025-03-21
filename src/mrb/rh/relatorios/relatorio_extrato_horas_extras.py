@@ -4,7 +4,6 @@ import os
 from fpdf import FPDF
 from sqlalchemy import Select, and_
 from sqlalchemy.orm import Session, aliased
-from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
 from src.mrb.common.lib.dec_to_str import dec_to_str
@@ -21,8 +20,9 @@ def relatorio_extrato_horas_extras(
     codigo_periodo: str,
     matricula_lider: str,
     matricula_colaborador: str = None,
+    nome_arquivo: str = f"extrato_he_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
 ) -> str | None:
-    nome_arquivo: str = None
+
     data_emissao: str = datetime.now().strftime("%d/%m/%Y %H:%M")
     limpa_pasta_trabalho()
 
@@ -46,7 +46,7 @@ def relatorio_extrato_horas_extras(
 
         nome_arquivo = os.path.join(
             Environment.CAMINHO_RELATORIOS,
-            f"extrato_he_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            f"{nome_arquivo}.pdf",
         )
         pdf = FPDF()
         limite_inferior = pdf.h - pdf.b_margin
@@ -99,7 +99,9 @@ def relatorio_extrato_horas_extras(
                 saldo_horas = 0
                 muda_pagina = True
 
-            if pdf.get_y() > limite_inferior - 10 or muda_pagina:
+            if not (n == total_de_registros - 1) and (
+                pdf.get_y() > limite_inferior - 10 or muda_pagina
+            ):
                 pagina_atual += 1
                 pdf.add_page()
                 imprime_cabecalho = True

@@ -19,3 +19,6 @@ dist/
 # Pastas de arquivos temporários
 **/temp/
 **/tmp/
+
+# VS Code
+.vscode/

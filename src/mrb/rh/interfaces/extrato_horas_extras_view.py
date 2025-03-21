@@ -1,6 +1,10 @@
+import base64
 from datetime import datetime
+import uuid
 import flet as ft
 
+from src.mrb.common.security.gera_token_downloads import gera_token_downloads
+from src.mrb.common.config import ApiConfiguration, Environment
 from src.mrb.common.lib.aviso import Aviso
 from src.mrb.common.interfaces.valida_data_digitada import valida_data_digitada
 from src.mrb.common.interfaces.preenche_data import preenche_data
@@ -447,25 +451,40 @@ class ExtratoHorasExtras:
             matricula_lider = AuthSession(self.page).user_data()[
                 "dados_cadastro_recursos"
             ]["matricula"]
+            codigo_usuario = AuthSession(self.page).user_data()["id_usuario"]
+            id_requisicao = str(uuid.uuid4())
+            token_relatorio = gera_token_downloads(
+                id_requisicao=id_requisicao, codigo_usuario=codigo_usuario
+            )
             retorno_relatorio = ComunicaApiHorasExtras(self.page).recupera_solicitacoes(
                 end_point=f"/extrato_he/relatorio/{self.seletor_periodos.value}/{matricula_lider}",
                 parametros_requisicao={
-                    "matricula_colaborador": self.seletor_colaborador.value
+                    "matricula_colaborador": self.seletor_colaborador.value,
+                    "nome_arquivo_resultado": id_requisicao,
                 },
             )
             if retorno_relatorio:
-                # Criar um seletor de arquivos para o usuário escolher onde salvar
-                file_picker = ft.FilePicker(
-                    on_result=lambda e: salvar_pdf(e, retorno_relatorio, self.page)
-                )
-                self.page.overlay.append(file_picker)
-                self.page.update()
+                if self.page.web:
+                    url_relatorio = f"http://{Environment.SERVER_IP}:{ApiConfiguration.rh.PORT}/download/"
+                    url_relatorio += f"{base64.urlsafe_b64encode(Environment.CAMINHO_RELATORIOS.encode()).decode()}"
+                    url_relatorio += f"?id_usuario={codigo_usuario}"
+                    url_relatorio += f"&token_arquivo={token_relatorio}"
+                    url_relatorio += f"&extencao_arquivo=pdf"
+                    self.page.launch_url(url_relatorio)
 
-                # Abrir o seletor para salvar arquivo
-                file_picker.save_file(
-                    file_type=[ft.FilePickerFileType.CUSTOM],
-                    allowed_extensions=["pdf"],
-                    dialog_title="Salvar relatório de Banco de Horas",
-                    initial_directory="C:\\Users\\Public\\Documents",
-                    file_name=f"relatorio_extrato_he_{self.seletor_periodos.value}_{self.seletor_colaborador.value.strip()}.pdf",
-                )
+                else:
+                    # Criar um seletor de arquivos para o usuário escolher onde salvar
+                    file_picker = ft.FilePicker(
+                        on_result=lambda e: salvar_pdf(e, retorno_relatorio, self.page)
+                    )
+                    self.page.overlay.append(file_picker)
+                    self.page.update()
+
+                    # Abrir o seletor para salvar arquivo
+                    file_picker.save_file(
+                        file_type=[ft.FilePickerFileType.CUSTOM],
+                        allowed_extensions=["pdf"],
+                        dialog_title="Salvar relatório de Banco de Horas",
+                        initial_directory="C:\\Users\\Public\\Documents",
+                        file_name=f"relatorio_extrato_he_{self.seletor_periodos.value}_{self.seletor_colaborador.value.strip()}.pdf",
+                    )
