@@ -1,7 +1,0 @@
-{
-	"totvsLanguageServer.welcomePage": false,
-	"totvsLanguageServer.editor.linter.includes": "C:\\Users\\mmcol\\OneDrive\\projetos_poupex\\protheus\\INCLUDE",
-	"python.analysis.extraPaths": [
-		"./src/database"
-	]
-}
