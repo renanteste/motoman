@@ -1056,7 +1056,7 @@ class SolicitacaoHorasExtras:
         else:
             self.titulo_painel_edicao.value = "Dados da Nova Solicitação"
 
-        self.matricula_painel_edicao.value = AuthSession().user_data()[
+        self.matricula_painel_edicao.value = AuthSession(self.page).user_data()[
             "dados_cadastro_recursos"
         ]["matricula"]
 
