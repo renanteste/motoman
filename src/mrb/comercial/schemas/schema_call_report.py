@@ -55,7 +55,7 @@ class CallReport(BaseModel):
         description="""CNPJ do representante que está inserindo a Call Report, sem traços ou pontos. 
                         Preenchido automaticamente pela autenticação na API.""",
     )
-    processos: Optional[str] = Field(None, max_length=250)
+    processos: Optional[str] = Field(None, max_length=300)
     interacoes_feedback: Optional[str] = Field(None)
     acoes_tomadas: Optional[str] = Field(None)
     proximos_passos: Optional[str] = Field(None)

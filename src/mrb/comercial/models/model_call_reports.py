@@ -16,7 +16,7 @@ class CallReports(Base):
     cargo_pessoa_contato = Column(String(30), nullable=False)
     projeto = Column(String(50), nullable=False)
     motivo_visita = Column(String(50), nullable=False)
-    processos = Column(String(250), nullable=True)
+    processos = Column(String(300), nullable=True)
     interacoes_feedback = Column(Text, nullable=True)
     acoes_tomadas = Column(Text, nullable=True)
     proximos_passos = Column(Text, nullable=True)

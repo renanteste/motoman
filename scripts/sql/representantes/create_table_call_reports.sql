@@ -7,7 +7,7 @@ CREATE TABLE call_reports (
     cargo_pessoa_contato VARCHAR(30),
     projeto VARCHAR(50),
     motivo_visita VARCHAR(50),
-    processos VARCHAR(250),
+    processos VARCHAR(300),
     interacoes_feedback TEXT,
     acoes_tomadas TEXT,
     proximos_passos TEXT,
