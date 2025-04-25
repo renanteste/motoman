@@ -97,6 +97,7 @@ class CallReportApp:
                     z03.c.Z03_SUBTHO.label("sub_thoroughfare"),
                     z03.c.Z03_TIPOVI.label("tipo_visita"),
                     z03.c.Z03_KAPLIC.label("chave_visita"),
+                    z03.c.Z03_EMAIL.label("email_contato"),
                 )
                 .join(
                     sa3,

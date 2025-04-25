@@ -103,6 +103,12 @@ class Prospect(BaseModel):
         description="""CNPJ do representante que está inserindo o Prospect, sem traços ou pontos. 
                         Preenchido automaticamente pela autenticação na API.""",
     )
+    email: Optional[str] = Field(
+        None,
+        max_length=100,
+        examples=["nome.contato@dominio.com"],
+        description="Endereço de e-mail do contato no Prospect.",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -196,6 +202,12 @@ class GetProspect(BaseModel):
         None,
         max_length=50,
         description="Chave que irá identificar o registro a partir do aplicativo de origem da informação.",
+    )
+    email: Optional[str] = Field(
+        None,
+        max_length=100,
+        examples=["nome.contato@dominio.com"],
+        description="Endereço de e-mail do contato no Prospect.",
     )
 
     model_config = ConfigDict(from_attributes=True)

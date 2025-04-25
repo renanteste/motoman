@@ -86,6 +86,12 @@ class CallReport(BaseModel):
         max_length=50,
         description="Chave que irá identificar o registro a partir do aplicativo de origem da informação.",
     )
+    email_contato: Optional[str] = Field(
+        None,
+        max_length=50,
+        examples=["nome.contato@dominio.com"],
+        description="Endereço de e-mail da pessoa visitada.",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

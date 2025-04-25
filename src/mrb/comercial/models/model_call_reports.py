@@ -33,3 +33,4 @@ class CallReports(Base):
     tipo_visita = Column(String(50), nullable=True)
     data_transmissao = Column(DateTime, default=datetime.now)
     chave_visita = Column(String(50), nullable=True)
+    email_contato = Column(String(50), nullable=True)

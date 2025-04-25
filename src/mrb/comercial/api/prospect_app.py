@@ -132,6 +132,7 @@ class ProspectApp:
                     sa1.c.A1_XCELULA,
                     sa1.c.A1_DTCAD,
                     sa1.c.A1_XKPRAPP,
+                    sa1.c.A1_YEMAIL,
                 )
                 .join(
                     sa1,
@@ -190,6 +191,7 @@ class ProspectApp:
                         ramal=registro.A1_XRAMAL,
                         cnpj_representante=self.cnpj_representante,
                         chave_prospect=registro.A1_XKPRAPP,
+                        email=registro.A1_YMAIL.strip(),
                     )
                 )
 
