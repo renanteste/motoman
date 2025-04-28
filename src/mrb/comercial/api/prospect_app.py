@@ -191,7 +191,7 @@ class ProspectApp:
                         ramal=registro.A1_XRAMAL,
                         cnpj_representante=self.cnpj_representante,
                         chave_prospect=registro.A1_XKPRAPP,
-                        email=registro.A1_YMAIL.strip(),
+                        email=registro.A1_YEMAIL.strip(),
                     )
                 )
 
