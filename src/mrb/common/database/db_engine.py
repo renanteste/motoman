@@ -1,11 +1,18 @@
+import base64
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.mrb.common.config import SqlConfiguration
 from urllib.parse import quote_plus
 
 # Configuração da engine com pooling
+url_engine = f"mssql+pymssql://{SqlConfiguration.USER}"
+url_engine += (
+    f":{quote_plus(base64.b64decode(SqlConfiguration.PASSWORD).decode('utf-8'))}"
+)
+url_engine += f"@{SqlConfiguration.SERVER}"
+url_engine += f"/{SqlConfiguration.DATABASE}"
 engine = create_engine(
-    f"mssql+pymssql://{SqlConfiguration.USER}:{quote_plus(SqlConfiguration.PASSWORD)}@{SqlConfiguration.SERVER}/{SqlConfiguration.DATABASE}",
+    url_engine,
     echo=False,
     pool_pre_ping=True,
     pool_size=10,

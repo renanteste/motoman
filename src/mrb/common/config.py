@@ -3,7 +3,7 @@ import os
 
 class EmailConfiguration:
     # ADDRESS = "mm.colato@hotmail.com"
-    # PASSWORD = "Mm3nd3sS422320"
+    # PASSWORD = ""
     # SMTP_SERVER = "smtp-mail.outlook.com"
     # SMTP_PORT = 587
     # SMTP_AUTENTICACAO = True
@@ -31,11 +31,20 @@ class ApiConfiguration:
         HOST = "0.0.0.0"
         PORT = 8001
 
+    class Coletores:
+        HOST = "0.0.0.0"
+        PORT = 63001
+
+        class Certificado:
+            # Se informados os arquivos, a solução subirá como https
+            ARQUIVO_CERTIFICADO = None
+            ARQUIVO_CHAVE_CERTIFICADO = None
+
 
 class SqlConfiguration:
     SERVER = "172.22.8.25"
     USER = "sa"
-    PASSWORD = "Moto@zt8htgda"
+    PASSWORD = "TW90b0B6dDhodGdkYQ=="
     DATABASE = "ZT8HTG_DEV"
 
 
@@ -49,3 +58,7 @@ class Environment:
     # Substituir com o IP para acesso externo ao servidor
     SERVER_IP = "127.0.0.1"
     CAMINHO_RELATORIOS = os.path.join("src", "mrb", "common", "temp", "relatorios")
+    # Chave compartilhada com a aplicação do coletor utilizada na autenticação
+    CHAVE_COLETOR = "Q8%pA2!kZzL7$wMEr3#vNgTb@CHAVE_COLETOR"
+    # URL do serviço REST do Protheus
+    URL_REST_PROTHEUS = "http://172.22.8.25:3001/rest"

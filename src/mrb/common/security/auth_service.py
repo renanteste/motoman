@@ -6,6 +6,7 @@ import pytz
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import requests
 from sqlalchemy import Select, and_, update
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
@@ -38,6 +39,8 @@ auth_router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
 TAMANHO_SENHA = usuarios_szk.columns["ZK_SENHA"].type.length
 TAMANHO_IV = usuarios_szk.columns["ZK_SAL"].type.length
+# Lista de clientes com autenticação de usuário e senha pelo Protheus
+CLIENTES_AUTENTICADOS_ERP = ["CHAVE_COLETOR"]
 
 
 class AuthService:
@@ -249,8 +252,51 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não existe!"
             )
 
-    def autentica_usuario(self, conta_usuario: str, senha_informada: str):
-        self.recupera_dados_usuario(conta_usuario)
+    def autentica_usuario_erp(self, conta_usuario: str, senha_informada: str) -> str:
+        """
+        Valida o usuário e senha enviados pelo REST do ERP
+        Retorna o endereço de e-mail do cadastro do ERP para localizar o usuário do portal
+        """
+        url_auth_erp = Environment.URL_REST_PROTHEUS + "/portalauth"
+        credenciais = base64.b64encode(
+            f"{conta_usuario}:{senha_informada}".encode()
+        ).decode()
+        response_auth_erp = requests.get(
+            url=url_auth_erp, headers={"Authorization": f"Basic {credenciais}"}
+        )
+        if response_auth_erp.status_code == status.HTTP_200_OK:
+            # A resposta do portal ERP é uma lista
+            dados_response = response_auth_erp.json()
+            # Assume o endereço de e-mail do usuário como código de usuário ERP para busca no cadastro de usuários do portal
+            usuario_erp = dados_response[0][4].strip()
+
+        else:
+            raise HTTPException(
+                status_code=response_auth_erp.status_code,
+                detail="Não autorizado no ERP",
+            )
+
+        return usuario_erp
+
+    def autentica_usuario(
+        self, conta_usuario: str, senha_informada: str, chave_cliente: str = None
+    ):
+        usuario_erp: str = None
+        # Identifica se a senha deve ser autenticada pelo Protheus
+        if chave_cliente:
+            chave_origem, _, cliente_origem = chave_cliente.rpartition("@")
+            # Verifica se o cliente origem é previsto para ser autenticado pelo ERP
+            if (
+                chave_origem
+                and cliente_origem
+                and cliente_origem in CLIENTES_AUTENTICADOS_ERP
+                and chave_cliente == getattr(Environment, cliente_origem, "")
+            ):
+                usuario_erp = self.autentica_usuario_erp(
+                    conta_usuario=conta_usuario, senha_informada=senha_informada
+                )
+
+        self.recupera_dados_usuario(usuario_erp if usuario_erp else conta_usuario)
         if self.dados_usuario.validade_usuario:
             validade_usuario = self.dados_usuario.validade_usuario
         else:
@@ -266,13 +312,13 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Cadastro de usuário bloqueado!",
             )
-        elif self.dados_usuario.solicitada_nova_senha:
+        elif not usuario_erp and self.dados_usuario.solicitada_nova_senha:
             self.gera_nova_senha()
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Enviada nova senha para o e-mail do usuário.",
             )
-        elif not self.senha_valida(senha_informada):
+        elif not usuario_erp and not self.senha_valida(senha_informada):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Não autenticado!",
@@ -363,12 +409,15 @@ async def login_token(
 ) -> AuthResponse:
     try:
         agente_requisicao = request.headers.get("User-Agent", default="indefinido")
+        chave_cliente = request.headers.get("X-Cliente-Token", default=None)
         resultado_autenticacao = AuthResponse()
         conta_usuario = form_data.username.lower()
         senha_informada = base64.b64decode(form_data.password).decode("utf-8")
 
         auth_service = AuthService(db)
-        auth_service.autentica_usuario(conta_usuario, senha_informada)
+        auth_service.autentica_usuario(
+            conta_usuario, senha_informada, chave_cliente=chave_cliente
+        )
         if auth_service.usuario_autenticado:
             resultado_autenticacao.dados_autenticacao = auth_service.autenticacao
             resultado_autenticacao.dados_usuario = auth_service.dados_usuario

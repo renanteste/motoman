@@ -10,7 +10,6 @@ import uvicorn
 from src.mrb.common.database.atualiza_tabelas import atualiza_tabelas
 from src.mrb.common.lib import configura_log
 from src.mrb.common.config import ApiConfiguration, Environment
-from src.mrb.common.security.auth_service import auth_router
 from src.mrb.rh.api.solicitacao_horas_extras import solicitacao_horas_extras_router
 from src.mrb.common.lib.recupera_parametro_sx6 import recupera_parametro_sx6_router
 from src.mrb.common.routers_compartilhados import routers_compartilhados
@@ -40,7 +39,6 @@ app.add_middleware(
     allow_headers=["*"],  # Permite todos os cabeçalhos
 )
 app.mount("/images", StaticFiles(directory=Environment.IMAGES_PATH), name="images")
-app.include_router(auth_router)
 app.include_router(solicitacao_horas_extras_router)
 app.include_router(recupera_parametro_sx6_router)
 app.include_router(routers_compartilhados)
