@@ -41,6 +41,13 @@ class LiberacaoHorasExtras(BaseModel):
                     Status da aprovação da solicitação.\n
                     0: Digitação, 1: Aguardando aprovação, 2: Aprovada, 3: Rejeitada, 4: Realizada""",
     )
+    tipo_registro: Literal[1, 2] = Field(
+        ...,
+        examples=[1, 2],
+        description="""
+                    Tipo do movimento da solicitação.\n
+                    1: Crédito, 2: Débito""",
+    )
     matricula_aprovador: Optional[str] = Field(
         ..., examples=["123456"], description="Matrícula do usuário aprovador."
     )

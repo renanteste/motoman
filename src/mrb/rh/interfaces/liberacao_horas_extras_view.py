@@ -7,7 +7,10 @@ from src.mrb.rh.interfaces.comunica_api_horas_extras import ComunicaApiHorasExtr
 from src.mrb.rh.interfaces.periodo_apontamento import PeriodoApontamento
 from src.mrb.common.interfaces.paginacao import Paginacao
 from src.mrb.common.lib.aviso import Aviso
-from src.mrb.rh.interfaces.solicitacao_horas_extras_view import STATUS_APROVACAO
+from src.mrb.rh.interfaces.solicitacao_horas_extras_view import (
+    OPCOES_TIPO_REGISTRO,
+    STATUS_APROVACAO,
+)
 from src.mrb.common.lib.iso_to_date import iso_to_date
 from src.mrb.common.config import ApiConfiguration
 from src.mrb.common.interfaces.auth.auth_session import AuthSession
@@ -44,6 +47,7 @@ class LiberacaoHorasExtras:
                 ft.DataColumn(ft.Text("Nome", weight="bold")),
                 ft.DataColumn(ft.Text("Dt. Planejada", weight="bold")),
                 ft.DataColumn(ft.Text("Qtd. Horas", weight="bold")),
+                ft.DataColumn(ft.Text("Tp. Movim.", weight="bold")),
                 ft.DataColumn(ft.Text("Dt. Solicitação", weight="bold")),
                 ft.DataColumn(ft.Text("Motivo", weight="bold")),
                 ft.DataColumn(ft.Text("Status Aprovação", weight="bold")),
@@ -502,6 +506,11 @@ class LiberacaoHorasExtras:
                                 ft.Text(iso_to_date(liberacao["data_planejada"]))
                             ),
                             ft.DataCell(ft.Text(liberacao["total_horas_planejada"])),
+                            ft.DataCell(
+                                ft.Text(
+                                    OPCOES_TIPO_REGISTRO[liberacao["tipo_registro"] - 1]
+                                )
+                            ),
                             ft.DataCell(
                                 ft.Text(iso_to_date(liberacao["data_solicitacao"]))
                             ),

@@ -42,6 +42,13 @@ class SolicitacaoHorasExtras(BaseModel):
                     Status da aprovação da solicitação.\n
                     0: Digitação, 1: Aguardando aprovação, 2: Aprovada, 3: Rejeitada, 4: Realizada""",
     )
+    tipo_registro: Literal[1, 2] = Field(
+        ...,
+        examples=[1, 2],
+        description="""
+                    Tipo do movimento da solicitação.\n
+                    1: Crédito, 2: Débito""",
+    )
     id: Optional[int] = Field(
         0,
         examples=[23],
@@ -62,6 +69,13 @@ class SolicitacaoHorasExtras(BaseModel):
     )
     data_aprovacao: Optional[datetime] = Field(
         None, description="Data da aprovação ou rejeição da solicitação."
+    )
+    usuario_digitacao: Optional[str] = Field(
+        None,
+        max_length=6,
+        min_length=6,
+        examples=["000001"],
+        description="Código do usuário responsável pela digitação da solicitação.",
     )
 
     model_config = ConfigDict(from_attributes=True)

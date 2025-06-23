@@ -20,19 +20,10 @@ class ColaboradorExtrato(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ListaColaboradorExtrato(BaseModel):
+class ListaColaboradores(BaseModel):
     matricula_do_lider: str = Field(
         ...,
         description="Matrícula do líder dos colaboradores com horas listadas no extrato.",
-    )
-    codigo_do_periodo: str = Field(
-        ..., description="Código do período de acúmulo de Banco de Horas."
-    )
-    data_inicial_movimentos: date = Field(
-        ..., description="Data inicial do período dos movimentos."
-    )
-    data_final_movimentos: date = Field(
-        ..., description="Data final do período dos movimentos."
     )
     total_de_registros: int = Field(
         default=0,
@@ -60,3 +51,15 @@ class ListaColaboradorExtrato(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ListaColaboradorExtrato(ListaColaboradores):
+    codigo_do_periodo: str = Field(
+        ..., description="Código do período de acúmulo de Banco de Horas."
+    )
+    data_inicial_movimentos: date = Field(
+        ..., description="Data inicial do período dos movimentos."
+    )
+    data_final_movimentos: date = Field(
+        ..., description="Data final do período dos movimentos."
+    )
