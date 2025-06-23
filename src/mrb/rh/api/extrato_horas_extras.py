@@ -11,6 +11,7 @@ from sqlalchemy import (
     desc,
     exists,
     func,
+    select,
     text,
     union_all,
 )
@@ -24,6 +25,7 @@ from src.mrb.rh.relatorios.relatorio_extrato_horas_extras import (
 from src.mrb.rh.schemas.schema_colaboradores_extrato import (
     ColaboradorExtrato,
     ListaColaboradorExtrato,
+    ListaColaboradores,
 )
 from src.mrb.rh.schemas.schema_periodos_banco_horas import (
     ListaPeriodosBancoHoras,
@@ -319,11 +321,6 @@ class CalculaExtratoHorasExtras:
                     zzu.c.ZZU_DATA,
                 )
             )
-            print(
-                query.compile(
-                    dialect=mssql.dialect(), compile_kwargs={"literal_binds": True}
-                )
-            )
             resultado_apontamentos = self.db.execute(query).fetchall()
             if resultado_apontamentos:
                 # Recupera as aprovações de Banco de Horas para os funcionários no período
@@ -331,9 +328,15 @@ class CalculaExtratoHorasExtras:
                     Select(
                         SolicitacoesHorasExtras.matricula,
                         SolicitacoesHorasExtras.data_planejada,
-                        func.sum(SolicitacoesHorasExtras.total_horas_planejada).label(
-                            "total_horas_planejada"
-                        ),
+                        func.sum(
+                            case(
+                                (
+                                    SolicitacoesHorasExtras.tipo_registro == 1,
+                                    SolicitacoesHorasExtras.total_horas_planejada,
+                                ),
+                                else_=-SolicitacoesHorasExtras.total_horas_planejada,
+                            )
+                        ).label("total_horas_planejada"),
                     )
                     .join(
                         sra,
@@ -724,6 +727,77 @@ def lista_periodos_bd(
     return lista_periodos_banco_horas
 
 
+@extrato_horas_extras_router.get("/lista_colaboradores/{matricula_lider}")
+def lista_colaboradores_lider(
+    matricula_lider: str,
+    payload: dict = Depends(valida_token),
+    db: Session = Depends(get_db),
+    pagina: int = Query(
+        default=1,
+        ge=1,
+        description="Número da página (maior que zero)",
+    ),
+    registros: int = Query(
+        default=10,
+        ge=1,
+        description="Quantidade de registros por página (maior que zero)",
+    ),
+) -> ListaColaboradores:
+    """
+    Retorna a relação de colaboradores subordinados ao lider
+    """
+    # Validar se tem acesso pelo token
+    if not valida_acesso_endpoint(db, payload):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+        )
+
+    sra = aliased(funcionarios_sra, name="sra")
+    query_base = (
+        select(sra.c.RA_MAT.label("matricula"), sra.c.RA_NOME.label("nome"))
+        .where(
+            and_(
+                sra.c.D_E_L_E_T_ == " ",
+                sra.c.RA_FILIAL == "01",
+                sra.c.RA_MAT >= " ",
+                sra.c.RA_XLIDER == matricula_lider,
+                sra.c.RA_DEMISSA == " ",
+            )
+        )
+        .group_by(sra.c.RA_MAT, sra.c.RA_NOME)
+    )
+    # Conta os registros para o controle de paginação
+    query = select(func.count()).select_from(query_base.subquery())
+    lista_colaboradores = ListaColaboradores(matricula_do_lider=matricula_lider)
+    lista_colaboradores.total_de_registros = db.execute(query).scalar_one()
+    lista_colaboradores.registros_por_pagina = registros
+    lista_colaboradores.total_de_paginas = (
+        lista_colaboradores.total_de_registros // registros
+    ) + (
+        1
+        if not lista_colaboradores.total_de_registros // registros
+        == lista_colaboradores.total_de_registros / registros
+        else 0
+    )
+    # Seleciona a lista de colaboradores do lider
+    query = (
+        query_base.order_by(sra.c.RA_NOME)
+        .offset((pagina - 1) * registros)
+        .limit(registros)
+    )
+    resultado = db.execute(query).fetchall()
+    if resultado:
+        lista_colaboradores.pagina = pagina
+        lista_colaboradores.colaboradores = [
+            ColaboradorExtrato.model_validate(
+                {"matricula": linha.matricula, "nome": linha.nome.rstrip()}
+            )
+            for linha in resultado
+        ]
+
+    return lista_colaboradores
+
+
 @extrato_horas_extras_router.get("/extrato_he/colaboradores/{matricula_lider}")
 def lista_colaboradores_extrato(
     matricula_lider: str,
@@ -744,7 +818,9 @@ def lista_colaboradores_extrato(
         description="Quantidade de registros por página (maior que zero)",
     ),
 ) -> ListaColaboradorExtrato:
-
+    """
+    Retorna a relação de colaboradores subordinados ao lider que possuem registro de extrato de banco de horas
+    """
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
