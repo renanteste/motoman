@@ -77,6 +77,7 @@ class PortalMrbApp:
             self.page.views.append(
                 self.solicitacao_horas_extras.get_solicitacao_horas_extras()
             )
+            self.solicitacao_horas_extras.carrega_liderados()
             self.solicitacao_horas_extras.carrega_solicitacoes()
 
         elif self.page.route == "/aprova_he":

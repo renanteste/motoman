@@ -1,5 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import CHAR, DECIMAL, Column, Integer, String, DateTime
+from sqlalchemy import CHAR, DECIMAL, Column, Integer, SmallInteger, String, DateTime
 
 Base = declarative_base()
 
@@ -17,3 +17,5 @@ class SolicitacoesHorasExtras(Base):
     comentario_aprovador = Column(String(250), nullable=True)
     matricula_aprovador = Column(CHAR(6), nullable=True)
     data_aprovacao = Column(DateTime, nullable=True)
+    usuario_digitacao = Column(CHAR(6), nullable=True)
+    tipo_registro = Column(SmallInteger, nullable=False)

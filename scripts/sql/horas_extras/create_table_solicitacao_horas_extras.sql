@@ -8,7 +8,9 @@ CREATE TABLE solicitacao_horas_extras (
 	status_aprovacao CHAR(1),
 	comentario_aprovador VARCHAR(250),
 	matricula_aprovador CHAR(6),
-	data_aprovacao DATETIME
+	data_aprovacao DATETIME,
+    usuario_digitacao CHAR(6),
+    tipo_registro TINYINT
 );
 CREATE UNIQUE INDEX idx_solicitacao_horas_extras_id ON solicitacao_horas_extras (id);
 CREATE INDEX idx_solicitacao_horas_extras_matricula_status_aprovacao_matricula_aprovador 

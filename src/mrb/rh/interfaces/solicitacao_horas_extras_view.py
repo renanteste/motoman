@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 import flet as ft
+import requests
 
 from src.mrb.common.interfaces.valida_data_digitada import valida_data_digitada
 from src.mrb.common.interfaces.preenche_data import preenche_data
@@ -20,6 +21,12 @@ STATUS_APROVACAO = {
     "3": "Rejeitada",
     "4": "Realizada",
 }
+
+OPCAO_LIMPAR_SELECAO_COLABORADORES = ft.dropdown.Option(
+    "-", "Limpar seleção", data=None, text_style=ft.TextStyle(size=12)
+)
+
+OPCOES_TIPO_REGISTRO = ["Crédito", "Débito"]
 
 
 class SolicitacaoHorasExtras:
@@ -75,6 +82,25 @@ class SolicitacaoHorasExtras:
             on_click=lambda _: self.vai_para_pagina(
                 int(self.total_paginas_browse.value)
             ),
+        )
+
+        # Controles para assumir o papel do colaborador
+        self.listagem_colaborador = ft.Dropdown(
+            width=370,
+            height=40,
+            label="Colaborador",
+            dense=True,
+            options=[OPCAO_LIMPAR_SELECAO_COLABORADORES],
+            on_change=lambda e: self.on_change_colaborador(e.control),
+        )
+        self.linha_assumir_papel = ft.Row(
+            spacing=20,
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.Text("Assumir o papel do colaborador:"),
+                self.listagem_colaborador,
+            ],
         )
 
         # Componentes da filtragem de registros
@@ -141,6 +167,7 @@ class SolicitacaoHorasExtras:
                 ft.DataColumn(ft.Text("Id", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Dt. Planejada", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Qtd. Horas", weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Tp. Movim.", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Dt. Solicitação", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Motivo", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Status Aprovação", weight=ft.FontWeight.BOLD)),
@@ -199,6 +226,24 @@ class SolicitacaoHorasExtras:
             text_align=ft.TextAlign.RIGHT,
             text_size=14,
         )
+        self.listagem_tipo_registro = ft.Dropdown(
+            width=85,
+            height=40,
+            label="Tipo",
+            dense=True,
+            options=[
+                ft.dropdown.Option(
+                    str(indice + 1),
+                    opcao,
+                    data=indice,
+                    text_style=ft.TextStyle(size=12),
+                )
+                for indice, opcao in enumerate(OPCOES_TIPO_REGISTRO)
+            ],
+            value="1",
+            tooltip="Infome se é um lançamento de Crédito ou Débito no Banco de Horas",
+            bgcolor=ft.Colors.WHITE,
+        )
         self.campo_motivo = ft.TextField(
             dense=True,
             expand=True,
@@ -241,6 +286,7 @@ class SolicitacaoHorasExtras:
                             theme_style=ft.TextThemeStyle.LABEL_LARGE,
                         ),
                         self.campo_quantidade_horas,
+                        self.listagem_tipo_registro,
                     ],
                 ),
                 ft.Row(
@@ -386,12 +432,15 @@ class SolicitacaoHorasExtras:
             else:
                 # Inclusao
                 solicitacao_horas_extras = {}
-                solicitacao_horas_extras["matricula"] = AuthSession(
-                    self.page
-                ).user_data()["dados_cadastro_recursos"]["matricula"]
+                solicitacao_horas_extras["matricula"] = (
+                    self.retorna_matricula_trabalho()
+                )
                 solicitacao_horas_extras["data_solicitacao"] = (
                     datetime.now().isoformat()
                 )
+                solicitacao_horas_extras["usuario_digitacao"] = AuthSession(
+                    self.page
+                ).user_data()["id_usuario"]
 
             # Alimenta os atributos com os dados da interface
             solicitacao_horas_extras["data_planejada"] = datetime.strptime(
@@ -402,6 +451,9 @@ class SolicitacaoHorasExtras:
                 self.campo_quantidade_horas.value.replace(",", ".")
             )
             solicitacao_horas_extras["status_aprovacao"] = "0"
+            solicitacao_horas_extras["tipo_registro"] = int(
+                self.listagem_tipo_registro.value
+            )
 
             comunica_api_horas_extras = ComunicaApiHorasExtras(page=self.page)
             if dados_solicitacao:
@@ -635,6 +687,7 @@ class SolicitacaoHorasExtras:
                                                     self.botao_ultima_pagina,
                                                 ],
                                             ),
+                                            self.linha_assumir_papel,
                                             ft.ListView(
                                                 expand=True,
                                                 controls=[
@@ -697,15 +750,27 @@ class SolicitacaoHorasExtras:
             ],
         )
 
+    def retorna_matricula_trabalho(self) -> str:
+        if (
+            self.listagem_colaborador.value
+            and not self.listagem_colaborador.value == ""
+        ):
+            matricula = self.listagem_colaborador.value
+
+        else:
+            matricula = AuthSession(self.page).user_data()["dados_cadastro_recursos"][
+                "matricula"
+            ]
+        return matricula
+
     def carrega_solicitacoes(self):
         """
         Método para recuperação dos dados de solicitações de Banco de Horas da api.
         """
         pagina_destino = self.pagina_atual_browse if self.pagina_atual_browse > 0 else 1
+
         parametros_requisicao = {
-            "matricula": AuthSession(self.page).user_data()["dados_cadastro_recursos"][
-                "matricula"
-            ],
+            "matricula": self.retorna_matricula_trabalho(),
             "pagina": str(pagina_destino),
         }
 
@@ -790,6 +855,13 @@ class SolicitacaoHorasExtras:
                                 ft.Text(iso_to_date(solicitacao["data_planejada"]))
                             ),
                             ft.DataCell(ft.Text(solicitacao["total_horas_planejada"])),
+                            ft.DataCell(
+                                ft.Text(
+                                    OPCOES_TIPO_REGISTRO[
+                                        solicitacao["tipo_registro"] - 1
+                                    ]
+                                )
+                            ),
                             ft.DataCell(
                                 ft.Text(iso_to_date(solicitacao["data_solicitacao"]))
                             ),
@@ -914,6 +986,7 @@ class SolicitacaoHorasExtras:
                             theme_style=ft.TextThemeStyle.LABEL_LARGE,
                         ),
                         ft.Text(solicitacao["total_horas_planejada"]),
+                        ft.Text(OPCOES_TIPO_REGISTRO[solicitacao["tipo_registro"] - 1]),
                     ],
                 )
             )
@@ -1056,10 +1129,73 @@ class SolicitacaoHorasExtras:
         else:
             self.titulo_painel_edicao.value = "Dados da Nova Solicitação"
 
-        self.matricula_painel_edicao.value = AuthSession(self.page).user_data()[
-            "dados_cadastro_recursos"
-        ]["matricula"]
+        self.matricula_painel_edicao.value = self.retorna_matricula_trabalho()
 
         self.dados_solicitacoes = dados_solicitacao
 
         self.habilitar_desabilitar_edicao()
+
+    def carrega_liderados(self):
+        # Limpa o conteúdo da lista de colaboradores
+        self.listagem_colaborador.options = [OPCAO_LIMPAR_SELECAO_COLABORADORES]
+
+        # Busca nova lista de colaboradores pela matrícula do usuário atual
+        matricula_logado = AuthSession(self.page).user_data()[
+            "dados_cadastro_recursos"
+        ]["matricula"]
+        dados_response = None
+        pagina_requisicao = 1
+        # Laço para recuperar todos os registros de todos os colaboradores liderados
+        while pagina_requisicao > 0:
+            dados_response = requests.get(
+                headers={"Authorization": f"Bearer {AuthSession(self.page).token()}"},
+                url=f"http://{ApiConfiguration.rh.SERVER}:{ApiConfiguration.rh.PORT}/lista_colaboradores/{matricula_logado}",
+                params={"pagina": pagina_requisicao, "registros": 100},
+            )
+            if dados_response.status_code == 200:
+                retorno_colaboradores = dados_response.json()
+                for colaborador in retorno_colaboradores["colaboradores"]:
+                    self.listagem_colaborador.options.append(
+                        ft.dropdown.Option(
+                            colaborador["matricula"],
+                            f"({colaborador['matricula'].strip()}) {colaborador['nome']}",
+                            data=colaborador,
+                            text_style=ft.TextStyle(size=12),
+                        )
+                    )
+
+                pagina_requisicao = (
+                    0
+                    if retorno_colaboradores["total_de_paginas"] == 0
+                    or retorno_colaboradores["total_de_paginas"] == pagina_requisicao
+                    else pagina_requisicao + 1
+                )
+
+            else:
+                # Caso não tenha retornado sucesso, limpa as opções já alimentadas na lista
+                self.listagem_colaborador.options = [OPCAO_LIMPAR_SELECAO_COLABORADORES]
+                break
+
+        # Trata o retorno de insucesso da requisição fora do laço
+        if not dados_response is None and not dados_response.status_code == 200:
+            if dados_response.status_code == 401:
+                self.page.go("/logout")
+
+            else:
+                Aviso(
+                    self.page,
+                    content=f"Falha na requisição de dados da api: {dados_response.status_code} - {dados_response.json()['detail']}",
+                    title="Requisição de Colaboradores",
+                    actions=["Fechar"],
+                ).exibir()
+
+        # Caso não tenha colaboradores, esconde o componente de tela
+        # Caso tenha colaboradores, exibe o componente de tela
+        self.linha_assumir_papel.visible = len(self.listagem_colaborador.options) > 1
+
+    def on_change_colaborador(self, listagem_colaborador: ft.Dropdown):
+        if listagem_colaborador.value == "-":
+            listagem_colaborador.value = ""
+            self.page.update()
+
+        self.carrega_solicitacoes()
