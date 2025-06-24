@@ -28,3 +28,4 @@ class Prospects(Base):
     data_transmissao = Column(DateTime, default=datetime.now)
     chave_prospect = Column(String(50), nullable=True)
     email = Column(String(100), nullable=True)
+    retorno_erp = Column(String(1), nullable=True)

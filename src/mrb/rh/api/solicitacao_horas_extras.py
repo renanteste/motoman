@@ -510,7 +510,8 @@ def altera_solicitacao_horas_extras(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'SOLICITA_HE'!",
         )
 
     if not isinstance(solicitacoes_he, list):
@@ -536,7 +537,8 @@ def nova_solicitacao_horas_extras(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'SOLICITA_HE'!",
         )
 
     if not isinstance(solicitacoes_he, list):
@@ -562,7 +564,8 @@ def apaga_solicitacao_horas_extras(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'SOLICITA_HE'!",
         )
 
     # Instancia a classe para excluir os registros
@@ -584,7 +587,8 @@ def lista_liberacao_horas_extras(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'SOLICITA_HE'!",
         )
     # Instancia a classe para retornar os dados
     solicitacao_horas_extras = SolitacaoHorasExtras(db)
@@ -617,7 +621,8 @@ def lista_solicitacoes_horas_extras(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'SOLICITA_HE'!",
         )
 
     # Instancia a classe para retornar os registros
@@ -639,7 +644,8 @@ def recupera_solicitacao_hora_extra(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'SOLICITA_HE'!",
         )
 
     # Instancia a classe para retornar os dados

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import datetime
 
 
@@ -109,13 +109,18 @@ class Prospect(BaseModel):
         examples=["nome.contato@dominio.com"],
         description="Endereço de e-mail do contato no Prospect.",
     )
+    retorno_erp: Optional[Literal["I", "A", "N"]] = Field(
+        None,
+        examples=["I", "A", "N"],
+        description="Retorno da atualização do prospect no ERP: (I)ncluído, (A)lterado ou (N)enhuma alteração.",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class GetProspect(BaseModel):
     """
-    Modelo da estrutura de recebimento de Prospects
+    Modelo da estrutura de retorno de Prospects
     """
 
     cnpj: str = Field(
@@ -208,6 +213,11 @@ class GetProspect(BaseModel):
         max_length=100,
         examples=["nome.contato@dominio.com"],
         description="Endereço de e-mail do contato no Prospect.",
+    )
+    retorno_erp: Optional[Literal["I", "A", "N"]] = Field(
+        None,
+        examples=["I", "A", "N"],
+        description="Retorno da atualização do prospect no ERP: (I)ncluído, (A)lterado ou (N)enhuma alteração.",
     )
 
     model_config = ConfigDict(from_attributes=True)

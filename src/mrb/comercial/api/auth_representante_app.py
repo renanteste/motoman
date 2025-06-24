@@ -14,7 +14,8 @@ def autentica_representante_app(
     auth_service = AuthService(db)
     if not auth_service.valida_acesso(id_usuario, ponto_acesso):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Sem acesso ao endpoint '{ponto_acesso}'!",
         )
 
     # Valida se é representante
