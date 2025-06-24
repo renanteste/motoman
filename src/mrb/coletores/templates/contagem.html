@@ -178,9 +178,11 @@
               alert("Vá até novo endereço");
             }
           } else if (response.status === 204) {
-            alert("Fim da ordem de separação");
+            alert("Fim da Ordem de Separação");
+            window.location.href = "/ordens";
           } else {
-            alert("Erro")
+            mensagem = await response.text();
+            alert(`Erro ${response.status}:\n${mensagem.length > 200 ? mensagem.substring(0, 200) : mensagem}`);
           }
         } catch (err) {
           alert(`Erro na transmissão da contagem: ${err}`)
