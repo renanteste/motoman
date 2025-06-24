@@ -54,9 +54,11 @@ from src.mrb.common.models.model_tabelas_genericas_sx5 import tabelas_genericas_
 extrato_horas_extras_router = APIRouter()
 
 
-def valida_acesso_endpoint(db: Session, payload: dict) -> bool:
+def valida_acesso_endpoint(
+    db: Session, payload: dict, nome_end_point: str = "EXTRATO_HE"
+) -> bool:
     auth_service = AuthService(db)
-    return auth_service.valida_acesso(payload.get("sub"), "EXTRATO_HE")
+    return auth_service.valida_acesso(payload.get("sub"), nome_end_point)
 
 
 class CalculaExtratoHorasExtras:
@@ -665,7 +667,8 @@ def lista_periodos_bd(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'EXTRATO_HE'!",
         )
 
     # Instancia a classe de retorno
@@ -747,9 +750,10 @@ def lista_colaboradores_lider(
     Retorna a relação de colaboradores subordinados ao lider
     """
     # Validar se tem acesso pelo token
-    if not valida_acesso_endpoint(db, payload):
+    if not valida_acesso_endpoint(db, payload, nome_end_point="SOLICITA_HE"):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'SOLICITA_HE'!",
         )
 
     sra = aliased(funcionarios_sra, name="sra")
@@ -824,7 +828,7 @@ def lista_colaboradores_extrato(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=" 'EXTRATO_HE'!"
         )
 
     # Instanciamento da classe já calcula os períodos
@@ -916,7 +920,8 @@ def gera_relatorio_horas_extras(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'EXTRATO_HE'!",
         )
 
     relatorio = relatorio_extrato_horas_extras(
@@ -988,7 +993,8 @@ def recupera_extrato_horas_extras(
     # Validar se tem acesso pelo token
     if not valida_acesso_endpoint(db, payload):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sem acesso ao endpoint!"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sem acesso ao endpoint 'EXTRATO_HE'!",
         )
 
     # Instanciamento da classe

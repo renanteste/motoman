@@ -907,7 +907,7 @@ class SolicitacaoHorasExtras:
                 + self.periodo_apontamento.final_periodo.strftime("%d/%m/%Y")
             )
 
-        self.texto_periodo_em_vigor.update()
+        self.page.update()
 
     def solicitar_liberacao(self, e):
         """
@@ -1178,16 +1178,15 @@ class SolicitacaoHorasExtras:
 
         # Trata o retorno de insucesso da requisição fora do laço
         if not dados_response is None and not dados_response.status_code == 200:
+            Aviso(
+                self.page,
+                content=f"Falha na requisição de dados da api: {dados_response.status_code} - {dados_response.json()['detail']}",
+                title="Requisição de Colaboradores",
+                actions=["Fechar"],
+            ).exibir()
+
             if dados_response.status_code == 401:
                 self.page.go("/logout")
-
-            else:
-                Aviso(
-                    self.page,
-                    content=f"Falha na requisição de dados da api: {dados_response.status_code} - {dados_response.json()['detail']}",
-                    title="Requisição de Colaboradores",
-                    actions=["Fechar"],
-                ).exibir()
 
         # Caso não tenha colaboradores, esconde o componente de tela
         # Caso tenha colaboradores, exibe o componente de tela
