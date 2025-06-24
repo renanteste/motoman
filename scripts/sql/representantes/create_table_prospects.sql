@@ -19,7 +19,8 @@ CREATE TABLE prospects (
     data_transmissao DATETIME,
     data_erp DATETIME,
     chave_prospect VARCHAR(50),
-    email VARCHAR(100)
+    email VARCHAR(100),
+    retorno_erp VARCHAR(1)
 );
 CREATE UNIQUE INDEX idx_prospects_id ON prospects (id);
 CREATE INDEX idx_prospects_cnpj_id ON prospects (cnpj_representante, cnpj, id);
