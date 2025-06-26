@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 1rem;
+            background-color: #f2f2f2;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            padding: 10px;
+            font-size: 1.1em;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 12px;
+            font-size: 1em;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #2d89ef;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Acesso ao Sistema</h2>
+
+    {% if erro %}
+    <div id="mensagem-erro" style="color: red; text-align: center; margin-bottom: 1rem;">
+        {{ erro }}
+    </div>
+    {% endif %}
+
+    {% if ja_autenticado %}
+    <p style="text-align: center;">Você já está autenticado.</p>
+    <div style="text-align: center;">
+        <a href="/ordens">
+            <button type="button"
+                style="padding: 12px; font-size: 1em; background-color: #2d89ef; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                Retornar
+            </button>
+        </a>
+        <form method="post" action="/logout" style="display: inline;">
+            <button type="submit"
+                style="padding: 12px; font-size: 1em; background-color: #d9534f; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">
+                Logout
+            </button>
+        </form>
+    </div>
+    {% else %}
+    <form method="post" action="/login">
+        <input type="text" name="usuario" placeholder="Usuário" required />
+        <input type="password" name="senha" placeholder="Senha" required />
+        <button type="submit">Entrar</button>
+    </form>
+    {% endif %}
+
+    <script>
+        const campoUsuario = document.querySelector('input[name="usuario"]');
+        const campoSenha = document.querySelector('input[name="senha"]');
+        const botao = document.querySelector('button[type="submit"]');
+
+        function limparErro() {
+            const mensagemErro = document.getElementById("mensagem-erro");
+            if (mensagemErro) {
+                mensagemErro.remove();
+            }
+        }
+
+        campoUsuario.addEventListener("input", limparErro);
+        campoSenha.addEventListener("input", limparErro);
+    </script>
+</body>
+
+</html>
