@@ -3,6 +3,7 @@ from decimal import Decimal
 import flet as ft
 import requests
 
+from src.mrb.common.lib.hdec_to_hhmm import hdec_to_hhmm, hhmm_to_hdec
 from src.mrb.common.interfaces.valida_data_digitada import valida_data_digitada
 from src.mrb.common.interfaces.preenche_data import preenche_data
 from src.mrb.rh.interfaces.comunica_api_horas_extras import ComunicaApiHorasExtras
@@ -215,14 +216,14 @@ class SolicitacaoHorasExtras:
             dense=True,
             on_change=lambda e: self.preenche_horas(e),
             input_filter=ft.InputFilter(
-                allow=True, regex_string=r"^[0-9,]*$", replacement_string=""
+                allow=True, regex_string=r"^[0-9:]*$", replacement_string=""
             ),
             on_blur=lambda e: self.valida_horas(e),
             width=80,
-            hint_text="0,00",
+            hint_text="0:00",
             data="",
             bgcolor=ft.Colors.WHITE,
-            tooltip="Digitar o total de horas decimais planejadas. Ex.: 2h 30m = 2,50h.",
+            tooltip="Digitar o total de horas planejadas no formato hh:mm (1:30, 10:00).",
             text_align=ft.TextAlign.RIGHT,
             text_size=14,
         )
@@ -447,8 +448,8 @@ class SolicitacaoHorasExtras:
                 self.campo_data_planejada.value, "%d/%m/%Y"
             ).isoformat()
             solicitacao_horas_extras["motivo"] = self.campo_motivo.value
-            solicitacao_horas_extras["total_horas_planejada"] = (
-                self.campo_quantidade_horas.value.replace(",", ".")
+            solicitacao_horas_extras["total_horas_planejada"] = str(
+                hhmm_to_hdec(self.campo_quantidade_horas.value)
             )
             solicitacao_horas_extras["status_aprovacao"] = "0"
             solicitacao_horas_extras["tipo_registro"] = int(
@@ -475,7 +476,7 @@ class SolicitacaoHorasExtras:
         """
         Método trata a digitação do campo de quantidade de horas decimais.
         \n
-        Permite apenas números e preenche automaticamente a vírgula decimal e o formato do dado digitado.
+        Permite apenas números e preenche automaticamente o separador de hora e minutos e o formato do dado digitado.
         \n
         Caso o usuário informe um conteúdo inválido, restaura o conteúdo anterior utilizando a
         propriedade 'data' do TextField como pivô.
@@ -485,10 +486,10 @@ class SolicitacaoHorasExtras:
 
             apenas_numeros = apenas_numeros.zfill(3)
 
-            inteiro = apenas_numeros[:-2]
-            decimal = apenas_numeros[-2:]
+            horas = apenas_numeros[:-2]
+            minutos = apenas_numeros[-2:]
 
-            if int(inteiro) > 24 or (int(inteiro) == 24 and int(decimal) > 0):
+            if int(horas) > 24 or (int(horas) == 24 and int(minutos) > 0):
                 Aviso(
                     self.page,
                     content="Total de horas não pode ser maior que 24!",
@@ -498,7 +499,7 @@ class SolicitacaoHorasExtras:
                 e.control.value = e.control.data
 
             else:
-                e.control.value = f"{int(inteiro)},{decimal}"
+                e.control.value = f"{int(horas)}:{minutos}"
                 e.control.data = e.control.value
 
             e.control.update()
@@ -507,35 +508,35 @@ class SolicitacaoHorasExtras:
         if self.page.web:
             campo: ft.TextField = evento.control
 
-            # Pega a posição da primeira vírgula que encontrar
-            posicao_virgula = campo.value.find(",")
+            # Pega a posição do separador
+            posicao_separador = campo.value.find(":")
 
-            # Se não encontrar vírgula, adiciona uma no final
-            if posicao_virgula == -1:
-                posicao_virgula = len(campo.value)
-                campo.value += ",00"
+            # Se não encontrar separador, adiciona no final
+            if posicao_separador == -1:
+                posicao_separador = len(campo.value)
+                campo.value += ":00"
 
-            # Se a posição da vírgula for a primeira, adiciona um zero antes
-            if posicao_virgula == 0:
+            # Se a posição do separador for a primeira, adiciona um zero antes
+            if posicao_separador == 0:
                 campo.value = f"0{campo.value}"
-                posicao_virgula += 1
+                posicao_separador += 1
 
-            # Pega os caracteres após a vírgula e remove todas as vírgulas
-            decimal = "".join(filter(str.isdigit, campo.value[posicao_virgula:]))
+            # Pega os caracteres após o separador e remove todos os separadores
+            minutos = "".join(filter(str.isdigit, campo.value[posicao_separador:]))
 
-            # Se o tamanho do decimal for maior que 2, pega os dois primeiros caracteres
-            if len(decimal) > 2:
-                decimal = decimal[:2]
+            # Se o tamanho dos minutos for maior que 2, pega os dois primeiros caracteres
+            if len(minutos) > 2:
+                minutos = minutos[:2]
 
-            # Se o tamanho do decimal for menor que 2, adiciona zeros à direita
-            if len(decimal) < 2:
-                decimal = decimal.ljust(2, "0")
+            # Se o tamanho dos minutos for menor que 2, adiciona zeros à direita
+            if len(minutos) < 2:
+                minutos = minutos.ljust(2, "0")
 
-            # Monta novamente o valor do campo combinando a parte inteira com a parte decimal
-            campo.value = f"{campo.value[:posicao_virgula]},{decimal}"
+            # Monta novamente o valor do campo combinando a parte das horas com a parte dos minutos
+            campo.value = f"{campo.value[:posicao_separador]}:{minutos}"
 
             # Garante que o valor não seja maior que 24
-            if float(campo.value.replace(",", ".")) > 24:
+            if float(campo.value.replace(":", ".")) > 24:
                 Aviso(
                     self.page,
                     content="Total de horas não pode ser maior que 24!",
@@ -854,7 +855,13 @@ class SolicitacaoHorasExtras:
                             ft.DataCell(
                                 ft.Text(iso_to_date(solicitacao["data_planejada"]))
                             ),
-                            ft.DataCell(ft.Text(solicitacao["total_horas_planejada"])),
+                            ft.DataCell(
+                                ft.Text(
+                                    hdec_to_hhmm(
+                                        Decimal(solicitacao["total_horas_planejada"])
+                                    )
+                                )
+                            ),
                             ft.DataCell(
                                 ft.Text(
                                     OPCOES_TIPO_REGISTRO[
@@ -907,7 +914,7 @@ class SolicitacaoHorasExtras:
                 + self.periodo_apontamento.final_periodo.strftime("%d/%m/%Y")
             )
 
-        self.texto_periodo_em_vigor.update()
+        self.page.update()
 
     def solicitar_liberacao(self, e):
         """
@@ -985,7 +992,9 @@ class SolicitacaoHorasExtras:
                             "Qtd. Horas Planejadas: ",
                             theme_style=ft.TextThemeStyle.LABEL_LARGE,
                         ),
-                        ft.Text(solicitacao["total_horas_planejada"]),
+                        ft.Text(
+                            hdec_to_hhmm(Decimal(solicitacao["total_horas_planejada"]))
+                        ),
                         ft.Text(OPCOES_TIPO_REGISTRO[solicitacao["tipo_registro"] - 1]),
                     ],
                 )
@@ -1121,9 +1130,9 @@ class SolicitacaoHorasExtras:
             self.campo_data_planejada.value = iso_to_date(
                 dados_solicitacao["data_planejada"]
             )
-            self.campo_quantidade_horas.value = dados_solicitacao[
-                "total_horas_planejada"
-            ].replace(".", ",")
+            self.campo_quantidade_horas.value = hdec_to_hhmm(
+                Decimal(dados_solicitacao["total_horas_planejada"])
+            )
             self.campo_motivo.value = dados_solicitacao["motivo"]
 
         else:
@@ -1178,16 +1187,15 @@ class SolicitacaoHorasExtras:
 
         # Trata o retorno de insucesso da requisição fora do laço
         if not dados_response is None and not dados_response.status_code == 200:
+            Aviso(
+                self.page,
+                content=f"Falha na requisição de dados da api: {dados_response.status_code} - {dados_response.json()['detail']}",
+                title="Requisição de Colaboradores",
+                actions=["Fechar"],
+            ).exibir()
+
             if dados_response.status_code == 401:
                 self.page.go("/logout")
-
-            else:
-                Aviso(
-                    self.page,
-                    content=f"Falha na requisição de dados da api: {dados_response.status_code} - {dados_response.json()['detail']}",
-                    title="Requisição de Colaboradores",
-                    actions=["Fechar"],
-                ).exibir()
 
         # Caso não tenha colaboradores, esconde o componente de tela
         # Caso tenha colaboradores, exibe o componente de tela

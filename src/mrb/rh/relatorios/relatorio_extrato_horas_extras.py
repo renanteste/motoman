@@ -6,6 +6,7 @@ from sqlalchemy import Select, and_
 from sqlalchemy.orm import Session, aliased
 from reportlab.lib.pagesizes import A4
 
+from src.mrb.common.lib.hdec_to_hhmm import hdec_to_hhmm
 from src.mrb.common.lib.dec_to_str import dec_to_str
 from src.mrb.rh.interfaces.extrato_horas_extras_view import TIPO_MOVIMENTO
 from src.mrb.rh.schemas.schema_extrato_horas_extras import MovimentoExtratoHorasExtras
@@ -73,12 +74,18 @@ def relatorio_extrato_horas_extras(
 
             pdf.set_font("Arial", "", 10)
             pdf.cell(20, 5, registro.dia.strftime("%d/%m/%Y"), align="C")
-            pdf.cell(25, 5, dec_to_str(registro.carga_horaria_dia), align="R")
+            pdf.cell(25, 5, hdec_to_hhmm(registro.carga_horaria_dia), align="R")
             pdf.cell(20, 5, TIPO_MOVIMENTO[registro.tipo_registro])
-            pdf.cell(33, 5, dec_to_str(registro.quantidade_horas_apontadas), align="R")
-            pdf.cell(33, 5, dec_to_str(registro.quantidade_horas_aprovadas), align="R")
-            pdf.cell(33, 5, dec_to_str(registro.quantidade_horas_computadas), align="R")
-            pdf.cell(28, 5, dec_to_str(saldo_horas), align="R")
+            pdf.cell(
+                33, 5, hdec_to_hhmm(registro.quantidade_horas_apontadas), align="R"
+            )
+            pdf.cell(
+                33, 5, hdec_to_hhmm(registro.quantidade_horas_aprovadas), align="R"
+            )
+            pdf.cell(
+                33, 5, hdec_to_hhmm(registro.quantidade_horas_computadas), align="R"
+            )
+            pdf.cell(28, 5, hdec_to_hhmm(saldo_horas), align="R")
             pdf.ln()
 
             # Se é o último registro ou mudou o colaborador, totaliza
@@ -91,7 +98,7 @@ def relatorio_extrato_horas_extras(
                 pdf.cell(
                     0,
                     5,
-                    f"Saldo para o colaborador {registro.nome.strip()}: {dec_to_str(saldo_horas)}",
+                    f"Saldo para o colaborador {registro.nome.strip()}: {hdec_to_hhmm(saldo_horas)}",
                     align="R",
                 )
                 pdf.ln()

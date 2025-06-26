@@ -19,6 +19,12 @@ class ComunicaApiHorasExtras:
         )
         if not response_solicitacoes.status_code == 200:
             if response_solicitacoes.status_code == 401:
+                Aviso(
+                    self.page,
+                    content=f"Não autorizado: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
+                    title="Alteração de Solicitação",
+                    actions=["Fechar"],
+                ).exibir()
                 self.page.go("/logout")
 
             else:
@@ -52,6 +58,12 @@ class ComunicaApiHorasExtras:
 
         else:
             if response_solicitacoes.status_code == 401:
+                Aviso(
+                    self.page,
+                    content=f"Não autorizado: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
+                    title="Requisição de Solicitações",
+                    actions=["Fechar"],
+                ).exibir()
                 self.page.go("/logout")
 
             else:
@@ -88,6 +100,12 @@ class ComunicaApiHorasExtras:
 
             else:
                 if response_solicitacoes.status_code == 401:
+                    Aviso(
+                        self.page,
+                        content=f"Não autorizado: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
+                        title="Alteração de Solicitação",
+                        actions=["Fechar"],
+                    ).exibir()
                     self.page.go("/logout")
 
                 else:
@@ -118,6 +136,12 @@ class ComunicaApiHorasExtras:
 
         else:
             if response_solicitacoes.status_code == 401:
+                Aviso(
+                    self.page,
+                    content=f"Não autorizado: {response_solicitacoes.status_code} - {response_solicitacoes.json()['detail']}",
+                    title="Alteração de Solicitação",
+                    actions=["Fechar"],
+                ).exibir()
                 self.page.go("/logout")
 
             else:

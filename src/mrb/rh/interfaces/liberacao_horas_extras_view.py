@@ -1,6 +1,8 @@
 from datetime import datetime
+from decimal import Decimal
 import flet as ft
 
+from src.mrb.common.lib.hdec_to_hhmm import hdec_to_hhmm
 from src.mrb.common.interfaces.valida_data_digitada import valida_data_digitada
 from src.mrb.common.interfaces.preenche_data import preenche_data
 from src.mrb.rh.interfaces.comunica_api_horas_extras import ComunicaApiHorasExtras
@@ -109,6 +111,7 @@ class LiberacaoHorasExtras:
         self.nome_painel_liberacao = ft.Text("")
         self.data_planejada_painel_liberacao = ft.Text("")
         self.quantidade_horas_painel_liberacao = ft.Text("")
+        self.tipo_movimento_painel_liberacao = ft.Text("")
         self.data_solicitacao_painel_liberacao = ft.Text("")
         self.motivo_painel_liberacao = ft.Text("", expand=True)
         self.status_painel_liberacao = ft.Text("")
@@ -170,6 +173,7 @@ class LiberacaoHorasExtras:
                             theme_style=ft.TextThemeStyle.LABEL_LARGE,
                         ),
                         self.quantidade_horas_painel_liberacao,
+                        self.tipo_movimento_painel_liberacao,
                     ],
                 ),
                 ft.Divider(),
@@ -505,7 +509,13 @@ class LiberacaoHorasExtras:
                             ft.DataCell(
                                 ft.Text(iso_to_date(liberacao["data_planejada"]))
                             ),
-                            ft.DataCell(ft.Text(liberacao["total_horas_planejada"])),
+                            ft.DataCell(
+                                ft.Text(
+                                    hdec_to_hhmm(
+                                        Decimal(liberacao["total_horas_planejada"])
+                                    )
+                                )
+                            ),
                             ft.DataCell(
                                 ft.Text(
                                     OPCOES_TIPO_REGISTRO[liberacao["tipo_registro"] - 1]
@@ -630,7 +640,10 @@ class LiberacaoHorasExtras:
                             "Qtd. Horas Planejadas: ",
                             theme_style=ft.TextThemeStyle.LABEL_LARGE,
                         ),
-                        ft.Text(solicitacao["total_horas_planejada"]),
+                        ft.Text(
+                            hdec_to_hhmm(Decimal(solicitacao["total_horas_planejada"]))
+                        ),
+                        ft.Text(OPCOES_TIPO_REGISTRO[solicitacao["tipo_registro"] - 1]),
                     ],
                 )
             )
@@ -804,8 +817,11 @@ class LiberacaoHorasExtras:
         self.data_planejada_painel_liberacao.value = iso_to_date(
             dados_liberacao["data_planejada"]
         )
-        self.quantidade_horas_painel_liberacao.value = dados_liberacao[
-            "total_horas_planejada"
+        self.quantidade_horas_painel_liberacao.value = hdec_to_hhmm(
+            Decimal(dados_liberacao["total_horas_planejada"])
+        )
+        self.tipo_movimento_painel_liberacao.value = OPCOES_TIPO_REGISTRO[
+            dados_liberacao["tipo_registro"] - 1
         ]
         self.data_solicitacao_painel_liberacao.value = iso_to_date(
             dados_liberacao["data_solicitacao"]
