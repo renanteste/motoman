@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Contagem</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background-color: #f9f9f9;
+    }
+
+    .info {
+      font-size: 1.1em;
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .info strong {
+      font-weight: bold;
+    }
+
+    #formulario {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      margin: 0 auto 20px auto;
+      max-width: 100%;
+    }
+
+    .linha-quantidade {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .linha-codigo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    label {
+      font-size: 1em;
+    }
+
+    input[type="number"] {
+      padding: 10px;
+      font-size: 1.1em;
+      box-sizing: border-box;
+      width: 100px;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      font-size: 1.1em;
+      box-sizing: border-box;
+      width: 240px;
+    }
+
+    button {
+      padding: 10px 16px;
+      font-size: 1em;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .btn-pular {
+      background-color: #f0ad4e;
+      color: white;
+    }
+
+    .btn-separar {
+      background-color: #5cb85c;
+      color: white;
+    }
+
+    #reader {
+      width: 100%;
+      max-width: 300px;
+      margin: 0 auto 20px auto;
+    }
+
+    .botoes-controle {
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+    }
+
+    .btn-pausar {
+      background-color: #d9534f;
+      color: white;
+      min-width: 140px;
+    }
+  </style>
+</head>
+
+<body>
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
+    <div style="font-size: 1em; color: #9e0303;">Operador:
+      {{ usuario_nome }}
+    </div>
+
+    <div class="info"><strong>Código:</strong> {{ codigo_produto }}</div>
+    <div class="info"><strong>Separar:</strong> {{ saldo_separar }}</div>
+
+    <form id="formulario">
+      <div class="linha-quantidade">
+        <label for="campo_quantidade">Separado:</label>
+        <input type="number" id="campo_quantidade" name="quantidade" placeholder="Qtd."
+          value="{{ '%.2f'|format(saldo_separar) }}" />
+        <button type="button" class="btn-pular" onclick="pularItem()">Pular</button>
+      </div>
+
+      <div class="linha-codigo">
+        <input type="text" id="campo_codigo" name="codigo" placeholder="Código" />
+        <button type="button" class="btn-separar" onclick="separarItem()">Separar</button>
+      </div>
+    </form>
+
+    <div id="reader"></div>
+
+    <div class="botoes-controle">
+      <form method="post" action="/pausar">
+        <input type="hidden" name="ordem_separacao" value="{{ ordem_separacao }}">
+        <button type="submit" class="btn-pausar">Pausar</button>
+      </form>
+    </div>
+
+    <script>
+      async function separarItem() {
+        const codigoItem = document.getElementById("campo_codigo").value.trim();
+
+        if (codigoItem !== "{{ codigo_produto | escapejs }}".trim()) {
+          alert(`Código ${codigoItem} inválido!`);
+          return;
+        }
+
+        const quantidade = parseFloat(document.getElementById("campo_quantidade").value);
+
+        const payload = {
+          ordem_separacao: "{{ ordem_separacao | escapejs }}",
+          item: "{{ item | escapejs }}",
+          codigo_produto: "{{ codigo_produto | escapejs }}",
+          quantidade_separada: quantidade,
+          almoxarifado: "{{ almoxarifado | escapejs }}",
+          pedido: "{{ pedido | escapejs }}",
+          sequencia_pedido: "{{ sequencia_pedido | escapejs }}"
+        };
+
+        try {
+          const response = await fetch("/registra_separacao", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (response.status === 200) {
+            const itemRetornado = await response.json();
+
+            if (itemRetornado.posicao.trim() === "{{ endereco_coletado | escapejs }}".trim()) {
+              // Atualiza os campos em tela com os dados retornados
+              document.getElementById("campo_codigo").value = "";
+              document.getElementById("campo_quantidade").value = itemRetornado.saldo_separar;
+              document.querySelector(".info:nth-child(2)").innerHTML = "<strong>Código:</strong> " + itemRetornado.codigo_produto;
+              document.querySelector(".info:nth-child(3)").innerHTML = "<strong>Separar:</strong> " + itemRetornado.saldo_separar;
+            } else {
+              alert("Vá até novo endereço");
+            }
+          } else if (response.status === 204) {
+            alert("Fim da Ordem de Separação");
+            window.location.href = "/ordens";
+          } else {
+            mensagem = await response.text();
+            alert(`Erro ${response.status}:\n${mensagem.length > 200 ? mensagem.substring(0, 200) : mensagem}`);
+          }
+        } catch (err) {
+          alert(`Erro na transmissão da contagem: ${err}`)
+        }
+      }
+
+      function pularItem() {
+        alert("Item pulado. (ação simulada).");
+      }
+
+      const html5QrCode = new Html5Qrcode("reader");
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 30, qrbox: 250 },
+        (decodedText, decodedResult) => {
+          if (decodedText.trim() === "{{ codigo_produto | escapejs }}".trim()) {
+            document.getElementById("campo_codigo").value = decodedText;
+            separarItem();
+          } else {
+            alert(`Código ${decodedText} inválido!`);
+          }
+        },
+        error => {
+          // erros ignorados
+        }
+      ).catch(err => {
+        alert("Erro ao acessar a câmera: " + err);
+      });
+    </script>
+</body>
+
+</html>

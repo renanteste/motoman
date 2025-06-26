@@ -3,6 +3,7 @@ from datetime import datetime
 import uuid
 import flet as ft
 
+from src.mrb.common.lib.hdec_to_hhmm import hdec_to_hhmm
 from src.mrb.common.security.gera_token_downloads import gera_token_downloads
 from src.mrb.common.config import ApiConfiguration, Environment
 from src.mrb.common.lib.aviso import Aviso
@@ -201,18 +202,26 @@ class ExtratoHorasExtras:
                             ft.DataCell(ft.Text(movimento.matricula)),
                             ft.DataCell(ft.Text(movimento.nome.rstrip())),
                             ft.DataCell(ft.Text(movimento.dia.strftime("%d/%m/%Y"))),
-                            ft.DataCell(ft.Text(str(movimento.carga_horaria_dia))),
+                            ft.DataCell(
+                                ft.Text(hdec_to_hhmm(movimento.carga_horaria_dia))
+                            ),
                             ft.DataCell(
                                 ft.Text(TIPO_MOVIMENTO[movimento.tipo_registro])
                             ),
                             ft.DataCell(
-                                ft.Text(str(movimento.quantidade_horas_apontadas))
+                                ft.Text(
+                                    hdec_to_hhmm(movimento.quantidade_horas_apontadas)
+                                )
                             ),
                             ft.DataCell(
-                                ft.Text(str(movimento.quantidade_horas_aprovadas))
+                                ft.Text(
+                                    hdec_to_hhmm(movimento.quantidade_horas_aprovadas)
+                                )
                             ),
                             ft.DataCell(
-                                ft.Text(str(movimento.quantidade_horas_computadas))
+                                ft.Text(
+                                    hdec_to_hhmm(movimento.quantidade_horas_computadas)
+                                )
                             ),
                         ],
                     )

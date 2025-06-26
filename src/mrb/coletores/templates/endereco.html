@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Endereço de Separação</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 1rem;
+      background-color: #f9f9f9;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    .destino {
+      font-size: 1.2em;
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    #reader {
+      width: 100%;
+      max-width: 400px;
+      margin: 0 auto 1.5rem auto;
+    }
+
+    .manual {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      font-size: 1.1em;
+      width: 200px;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 1em;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: #2d89ef;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
+    <div style="font-size: 1em; color: #9e0303;">Operador:
+      {{ usuario_nome }}
+    </div>
+
+    <form method="post" action="/pausar" style="display: inline;">
+      <input type="hidden" name="ordem_separacao" value="{{ ordem_separacao }}">
+      <button type="submit"
+        style="background: none; border: none; color: #2d89ef; font-size: 1em; cursor: pointer; text-decoration: underline;">
+        Pausar
+      </button>
+    </form>
+  </div>
+
+  <h2>OS &lt;{{ ordem_separacao }}&gt;</h2>
+
+  <div class="destino">
+    Vá para o endereço:<br />
+    <strong>{{ posicao }}</strong><br />
+  </div>
+
+  {% if enderecos_alternativos | default(false) %}
+  <div class="destino" style="font-size: 0.95em; color: #333;">
+    Endereços alternativos:<br />
+    <span>{{ enderecos_alternativos.replace("|", " | ") }}</span>
+  </div>
+  {% endif %}
+
+  <div id="reader"></div>
+
+  <div class="manual">
+    <input type="text" id="endereco_coletado" placeholder="Digite o endereço" />
+    <button onclick="confirmarEndereco()">Confirmar</button>
+  </div>
+
+  <script>
+    function validarEndereco(enderecoParametro) {
+      const endereco = enderecoParametro.trim().toUpperCase();
+      const enderecoPrincipal = "{{ posicao | escapejs }}".trim().toUpperCase();
+      const enderecosAlternativos = "{{ enderecos_alternativos | default('') | escapejs }}".split("|").map(e => e.trim().toUpperCase()).filter(e => e);
+      return endereco === enderecoPrincipal || enderecosAlternativos.includes(endereco);
+    }
+
+    function ativarContagem(enderecoColetado) {
+      document.querySelector("form#envioContagem")?.remove()
+      const formulario = document.createElement("form");
+      formulario.id = "envioContagem"
+      formulario.method = "POST";
+      formulario.action("/contagem");
+
+      const camposFormulario = {
+        ordem_separacao: "{{ ordem_separacao | escapejs }}",
+        item: "{{ item | escapejs }}",
+        codigo_produto: "{{ codigo_produto | escapejs }}",
+        posicao: "{{ posicao | escapejs }}",
+        saldo_separar: "{{ saldo_separar | escapejs }}",
+        almoxarifado: "{{ almoxarifado | escapejs }}",
+        pedido: "{{ pedido | escapejs }}",
+        sequencia_pedido: "{{ sequencia_pedido | escapejs }}",
+        endereco_coletado: enderecoColetado
+      };
+
+      for (const chave in camposFormulario) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = chave;
+        input.value = camposFormulario[chave];
+        formulario.appendChild(input);
+      }
+
+      document.body.appendChild(formulario);
+      formulario.submit();
+    }
+
+    function confirmarEndereco() {
+      const endereco = document.getElementById("endereco_coletado").value;
+      if (endereco.trim()) {
+        if (validarEndereco(endereco)) {
+          ativarContagem(endereco);
+        } else {
+          alert("Endereço não cadastrado!")
+        }
+      } else {
+        alert("Informe um endereço válido!")
+      }
+    }
+
+    const html5QrCode = new Html5Qrcode("reader");
+
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 15, qrbox: 250 },
+      (decodedText, _) => {
+        if (validarEndereco(decodedText)) {
+          html5QrCode.stop().then(() => ativarContagem(decodedText)).catch(() => ativarContagem(decodedText));
+        } else {
+          alert("Endereço lido inválido, verifique!")
+        }
+      },
+      error => {
+        // erros ignorados
+      }
+    ).catch(err => {
+      alert("Erro ao acessar a câmera: " + err);
+    });
+  </script>
+</body>
+
+</html>
