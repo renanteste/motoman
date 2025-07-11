@@ -101,7 +101,7 @@
     }
 
     function ativarContagem(enderecoColetado) {
-      document.querySelector("form#envioContagem")?.remove()
+      document.querySelector("form#envioContagem")?.remove();
       const formulario = document.createElement("form");
       formulario.id = "envioContagem"
       formulario.method = "POST";
@@ -111,7 +111,6 @@
         ordem_separacao: "{{ ordem_separacao | escapejs }}",
         item: "{{ item | escapejs }}",
         codigo_produto: "{{ codigo_produto | escapejs }}",
-        posicao: "{{ posicao | escapejs }}",
         saldo_separar: "{{ saldo_separar | escapejs }}",
         almoxarifado: "{{ almoxarifado | escapejs }}",
         pedido: "{{ pedido | escapejs }}",

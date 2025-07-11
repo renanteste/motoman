@@ -1,8 +1,8 @@
 import base64
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import List
-from fastapi import FastAPI, Form, HTTPException, Request, status
+from typing import List, Optional
+from fastapi import FastAPI, Form, HTTPException, Path, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 import requests
@@ -15,6 +15,40 @@ from src.mrb.coletores.api.ordens_separacao import ordens_separacao_router
 app = FastAPI()
 app.include_router(ordens_separacao_router)
 templates = Jinja2Templates(directory="src\\mrb\\coletores\\templates")
+
+
+def retorno_separacao(
+    request: Request, retorno_separacao: dict, nome_usuario: str, endereco_coletado: str
+):
+    enderecos_alternativos = retorno_separacao.get("enderecos_alternativos") or []
+    parametros = {
+        "ordem_separacao": retorno_separacao["ordem_separacao"],
+        "item": retorno_separacao["item"],
+        "codigo_produto": retorno_separacao["codigo_produto"],
+        "saldo_separar": retorno_separacao["saldo_separar"],
+        "almoxarifado": retorno_separacao["almoxarifado"],
+        "pedido": retorno_separacao.get("pedido", ""),
+        "sequencia_pedido": retorno_separacao.get("sequencia_pedido", ""),
+        "usuario_nome": nome_usuario,
+    }
+    if retorno_separacao[
+        "posicao"
+    ] == endereco_coletado or endereco_coletado.strip() in [
+        endereco.strip() for endereco in enderecos_alternativos
+    ]:
+        # Se a posicao do proximo item for igual a posição coletada anteriormente, ou se a posição coletada
+        # anteriormente estiver entre os endereços alternativos do item atual, mandar contar o novo item
+        parametros["endereco_coletado"] = endereco_coletado
+        return templates.TemplateResponse(
+            "contagem.html",
+            parametros,
+        )
+
+    else:
+        # Caso contrário, se a posição for diferente, mandar o usuário bipar novo endereço
+        parametros["request"] = request
+        parametros["posicao"] = retorno_separacao["posicao"]
+        return templates.TemplateResponse("endereco.html", parametros)
 
 
 @app.get("/", include_in_schema=False)
@@ -45,7 +79,7 @@ def lista_ordens_separacao(request: Request):
         token = request.cookies.get("access_token")
 
         if not token:
-            return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+            return logout()
 
         response = requests.get(
             f"http://localhost:{ApiConfiguration.Coletores.PORT}/ordens_separacao",
@@ -86,16 +120,23 @@ def lista_ordens_separacao(request: Request):
         )
 
 
-@app.get("/inicia_separacao/{ordem_separacao}")
-def inicia_separacao(request: Request, ordem_separacao: str):
+@app.get("/inicia_separacao/{ordem_separacao}", include_in_schema=False)
+@app.get("/inicia_separacao/{ordem_separacao}/{item}", include_in_schema=False)
+def inicia_separacao(
+    request: Request, ordem_separacao: str, item: Optional[str] = Path(default=None)
+):
     token = request.cookies.get("access_token")
     if not token:
-        return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+        return logout()
 
     try:
         # Recupera o item da ordem de separação
+        url = f"http://localhost:{ApiConfiguration.Coletores.PORT}/separar/{ordem_separacao}"
+        if item:
+            url += f"/{item}"
+
         response = requests.post(
-            url=f"http://localhost:{ApiConfiguration.Coletores.PORT}/separar/{ordem_separacao}",
+            url=url,
             headers={
                 "Authorization": f"Bearer {token}",
                 "X-Cliente-Token": Environment.CHAVE_COLETOR,
@@ -229,19 +270,182 @@ async def processa_login(
         )
 
 
+@app.post("/grava_separacao", include_in_schema=False)
+async def grava_separacao(
+    request: Request,
+    ordem_separacao: str = Form(...),
+    item: str = Form(...),
+    codigo_produto: str = Form(...),
+    quantidade_separada: str = Form(...),
+    almoxarifado: str = Form(...),
+    pedido: str = Form(...),
+    sequencia_pedido: str = Form(...),
+    endereco_coletado: str = Form(...),
+):
+    token = request.cookies.get("access_token")
+    nome_usuario = request.cookies.get("nome_usuario", "")
+    if not token:
+        return logout()
+
+    try:
+        try:
+            quantidade_separada_decimal = Decimal(quantidade_separada)
+
+        except InvalidOperation as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Valor inválido para 'quantidade_separada': {e}",
+            )
+
+        # Registra a separação no endpoint registra_separacao
+        response = requests.post(
+            f"http://localhost:{ApiConfiguration.Coletores.PORT}/registra_separacao",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "X-Cliente-Token": Environment.CHAVE_COLETOR,
+                "Content-Type": "application/json",
+            },
+            json={
+                "ordem_separacao": ordem_separacao,
+                "item": item,
+                "codigo_produto": codigo_produto,
+                "quantidade_separada": quantidade_separada_decimal,
+                "almoxarifado": almoxarifado,
+                "pedido": pedido,
+                "sequencia_pedido": sequencia_pedido,
+            },
+        )
+
+        if response.status_code == status.HTTP_401_UNAUTHORIZED:
+            return logout()
+
+        elif response.status_code == status.HTTP_204_NO_CONTENT:
+            # Ordem de separação gravada sem retornar novos itens, é ordem finalizada
+            return RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
+
+        elif not response.status_code == status.HTTP_200_OK:
+            return templates.TemplateResponse(
+                "contagem.html",
+                {
+                    "ordem_separacao": ordem_separacao,
+                    "item": item,
+                    "codigo_produto": codigo_produto,
+                    "saldo_separar": quantidade_separada_decimal,
+                    "almoxarifado": almoxarifado,
+                    "pedido": pedido,
+                    "sequencia_pedido": sequencia_pedido,
+                    "endereco_coletado": endereco_coletado,
+                    "usuario_nome": nome_usuario,
+                    "erro": f"Não gravado: {response.status_code} - {response.json()['detail']}",
+                },
+            )
+
+        # O retorno da separação gravada com sucesso é do próximo item
+        return retorno_separacao(
+            request=request,
+            retorno_separacao=response.json(),
+            nome_usuario=nome_usuario,
+            endereco_coletado=endereco_coletado,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Falha preparando para gravar separação: {e}",
+        )
+
+
+@app.post("/pular", include_in_schema=False)
+def pular_item(
+    request: Request,
+    ordem_separacao: str = Form(...),
+    item: str = Form(...),
+    codigo_produto: str = Form(...),
+    quantidade_separada: str = Form(...),
+    almoxarifado: str = Form(...),
+    pedido: str = Form(...),
+    sequencia_pedido: str = Form(...),
+    endereco_coletado: str = Form(...),
+):
+    token = request.cookies.get("access_token")
+    nome_usuario = request.cookies.get("nome_usuario", "")
+    if not token:
+        logout()
+
+    # Aciona o endpoint pular_item e se retornar algum item, redireciona para a contagem
+    try:
+        response = requests.post(
+            url=f"http://localhost:{ApiConfiguration.Coletores.PORT}/pular_item/{ordem_separacao}/{item}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "X-Cliente-Token": Environment.CHAVE_COLETOR,
+            },
+        )
+
+        if response.status_code == status.HTTP_401_UNAUTHORIZED:
+            logout()
+
+        elif response.status_code == status.HTTP_204_NO_CONTENT:
+            # Ordem de separação gravada sem retornar novos itens, é que chegou ao final
+            return RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
+
+        elif not response.status_code == status.HTTP_200_OK:
+            # Em caso de falha ao pular o item, retorna os dados anteriores
+            try:
+                quantidade_separada_decimal = Decimal(quantidade_separada)
+
+            except InvalidOperation as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Valor inválido para 'quantidade_separada': {e}",
+                )
+
+            return templates.TemplateResponse(
+                "contagem.html",
+                {
+                    "ordem_separacao": ordem_separacao,
+                    "item": item,
+                    "codigo_produto": codigo_produto,
+                    "saldo_separar": quantidade_separada_decimal,
+                    "almoxarifado": almoxarifado,
+                    "pedido": pedido,
+                    "sequencia_pedido": sequencia_pedido,
+                    "endereco_coletado": endereco_coletado,
+                    "usuario_nome": nome_usuario,
+                    "erro": f"Falha ao pular {response.status_code} - {response.json()['detail']}",
+                },
+            )
+
+        return retorno_separacao(
+            request=request,
+            retorno_separacao=response.json()[0],
+            nome_usuario=nome_usuario,
+            endereco_coletado=endereco_coletado,
+        )
+
+    except requests.RequestException as e:
+        return templates.TemplateResponse(
+            "ordens.html",
+            {"request": request, "erro": f"Erro ao pular item: {e}"},
+        )
+
+
 @app.post("/contagem", include_in_schema=False)
 async def contagem(
     request: Request,
     ordem_separacao: str = Form(...),
     item: str = Form(...),
     codigo_produto: str = Form(...),
-    posicao: str = Form(...),
     saldo_separar: str = Form(...),
     almoxarifado: str = Form(...),
     pedido: str = Form(...),
     sequencia_pedido: str = Form(...),
     endereco_coletado: str = Form(...),
 ):
+    token = request.cookies.get("access_token")
+    if not token:
+        return logout()
+
     try:
         try:
             saldo_decimal = Decimal(saldo_separar)
@@ -255,11 +459,9 @@ async def contagem(
         return templates.TemplateResponse(
             "contagem.html",
             {
-                "request": request,
                 "ordem_separacao": ordem_separacao,
                 "item": item,
                 "codigo_produto": codigo_produto,
-                "posicao": posicao,
                 "saldo_separar": saldo_decimal,
                 "almoxarifado": almoxarifado,
                 "pedido": pedido,
@@ -280,7 +482,7 @@ async def contagem(
 async def pausar(request: Request, ordem_separacao: str = Form(...)):
     token = request.cookies.get("access_token")
     if not token:
-        return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+        return logout()
 
     try:
         response = requests.post(

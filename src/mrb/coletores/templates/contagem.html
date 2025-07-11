@@ -104,6 +104,13 @@
 </head>
 
 <body>
+  {% if erro %}
+  <div
+    style="color: red; background-color: #ffeeee; padding: 10px; text-align: center; font-weight: bold; border: 1px solid red; margin-bottom: 1rem;">
+    {{ erro }}
+  </div>
+  {% endif %}
+
   <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
     <div style="font-size: 1em; color: #9e0303;">Operador:
       {{ usuario_nome }}
@@ -136,61 +143,78 @@
     </div>
 
     <script>
-      async function separarItem() {
+      function separarItem() {
+        // Codigo lido ou digitado pelo operador
         const codigoItem = document.getElementById("campo_codigo").value.trim();
-
         if (codigoItem !== "{{ codigo_produto | escapejs }}".trim()) {
           alert(`Código ${codigoItem} inválido!`);
           return;
         }
 
+        // Conteúdo do campo quantidade
         const quantidade = parseFloat(document.getElementById("campo_quantidade").value);
 
-        const payload = {
+        // Montar o formulário dinamicamente para enviar as informações ao serviço do frontend
+        document.querySelector("form#registroSeparacao")?.remove();
+        const formularioSeparacao = document.createElement("form");
+        formularioSeparacao.id = "form#registroSeparacao";
+        formularioSeparacao.method = "POST";
+        formularioSeparacao.action = "/grava_separacao";
+
+        const camposFormularioSeparacao = {
           ordem_separacao: "{{ ordem_separacao | escapejs }}",
           item: "{{ item | escapejs }}",
-          codigo_produto: "{{ codigo_produto | escapejs }}",
+          codigo_produto: codigoItem,
           quantidade_separada: quantidade,
           almoxarifado: "{{ almoxarifado | escapejs }}",
           pedido: "{{ pedido | escapejs }}",
-          sequencia_pedido: "{{ sequencia_pedido | escapejs }}"
+          sequencia_pedido: "{{ sequencia_pedido | escapejs }}",
+          endereco_coletado: "{{ endereco_coletado | escapejs }}"
         };
 
-        try {
-          const response = await fetch("/registra_separacao", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
-          });
-
-          if (response.status === 200) {
-            const itemRetornado = await response.json();
-
-            if (itemRetornado.posicao.trim() === "{{ endereco_coletado | escapejs }}".trim()) {
-              // Atualiza os campos em tela com os dados retornados
-              document.getElementById("campo_codigo").value = "";
-              document.getElementById("campo_quantidade").value = itemRetornado.saldo_separar;
-              document.querySelector(".info:nth-child(2)").innerHTML = "<strong>Código:</strong> " + itemRetornado.codigo_produto;
-              document.querySelector(".info:nth-child(3)").innerHTML = "<strong>Separar:</strong> " + itemRetornado.saldo_separar;
-            } else {
-              alert("Vá até novo endereço");
-            }
-          } else if (response.status === 204) {
-            alert("Fim da Ordem de Separação");
-            window.location.href = "/ordens";
-          } else {
-            mensagem = await response.text();
-            alert(`Erro ${response.status}:\n${mensagem.length > 200 ? mensagem.substring(0, 200) : mensagem}`);
-          }
-        } catch (err) {
-          alert(`Erro na transmissão da contagem: ${err}`)
+        for (const chave in camposFormularioSeparacao) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = chave;
+          input.value = camposFormularioSeparacao[chave];
+          formularioSeparacao.appendChild(input);
         }
+
+        document.body.appendChild(formularioSeparacao);
+        formularioSeparacao.submit();
       }
 
       function pularItem() {
-        alert("Item pulado. (ação simulada).");
+        if (confirm("Confirma pular o item atual?")) {
+          // window.location.href = `/pular/${ordem_separacao}/${item}`
+          document.querySelector("form#pularItemSeparacao")?.remove();
+          const formularioPularItemSeparacao = document.createElement("form");
+          formularioPularItemSeparacao.id = "form#pularItemSeparacao";
+          formularioPularItemSeparacao.method = "POST";
+          formularioPularItemSeparacao.action = "/pular"
+
+          const camposFormularioPularItensSeparacao = {
+            ordem_separacao: "{{ ordem_separacao | escapejs }}",
+            item: "{{ item | escapejs }}",
+            codigo_produto: "{{ codigo_produto | escapejs }}",
+            quantidade_separada: "{{ saldo_separar | escapejs }}",
+            almoxarifado: "{{ almoxarifado | escapejs }}",
+            pedido: "{{ pedido | escapejs }}",
+            sequencia_pedido: "{{ sequencia_pedido | escapejs }}",
+            endereco_coletado: "{{ endereco_coletado | escapejs }}"
+          };
+
+          for (const chave in camposFormularioPularItensSeparacao) {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = chave;
+            input.value = camposFormularioPularItensSeparacao[chave];
+            formularioPularItemSeparacao.appendChild(input);
+          }
+
+          document.body.appendChild(formularioPularItemSeparacao);
+          formularioPularItemSeparacao.submit()
+        }
       }
 
       const html5QrCode = new Html5Qrcode("reader");

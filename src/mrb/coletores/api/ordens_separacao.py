@@ -1,7 +1,7 @@
 from decimal import Decimal
 import time
-from typing import List, Union
-from fastapi import APIRouter, Depends, HTTPException, Header, Response, status
+from typing import List, Optional, Union
+from fastapi import APIRouter, Depends, HTTPException, Header, Path, Response, status
 from sqlalchemy import (
     Integer,
     Numeric,
@@ -89,7 +89,7 @@ class OrdensSeparacao:
             )
             .where(
                 and_(
-                    cb7.c.D_E_L_E_T_ == "",
+                    cb7.c.D_E_L_E_T_ == " ",
                     cb7.c.CB7_FILIAL == "01",
                     cb7.c.CB7_ORDSEP >= " ",
                     cb7.c.CB7_CODOPE != " ",
@@ -242,7 +242,7 @@ class OrdensSeparacao:
             query = (
                 update(cb7)
                 .where(
-                    cb7.c.D_E_L_E_T_ == "",
+                    cb7.c.D_E_L_E_T_ == " ",
                     cb7.c.CB7_FILIAL == "01",
                     cb7.c.CB7_ORDSEP != ordem_separacao,
                     cb7.c.CB7_CODOPE == self.codigo_operador,
@@ -265,11 +265,20 @@ class OrdensSeparacao:
                 )
 
     def recupera_itens(
-        self, ordem_separacao: str, item_anterior: str = " "
+        self, ordem_separacao: str, item_anterior: str = " ", item: str = None
     ) -> List[ItemOrdemSeparacao]:
-        itens_ordem_separacao: List[ItemOrdemSeparacao] = None
+        itens_ordem_separacao: List[ItemOrdemSeparacao] = []
         cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
         z0o = aliased(posicoes_z0o, name="z0o")
+        condicao = [
+            cb8.c.D_E_L_E_T_ == " ",
+            cb8.CB8_FILIAL == "01",
+            cb8.c.CB8_ORDSEP == ordem_separacao,
+            cb8.c.CB8_ITEM > item_anterior,
+        ]
+        if item:
+            condicao.append(cb8.c.CB8_ITEM == item)
+
         query = (
             select(
                 cb8.c.CB8_ITEM.label("item"),
@@ -292,21 +301,14 @@ class OrdensSeparacao:
                 cb8.outerjoin(
                     z0o,
                     and_(
-                        z0o.c.D_E_L_E_T_ == "",
+                        z0o.c.D_E_L_E_T_ == " ",
                         z0o.c.Z0O_FILIAL == "01",
                         z0o.c.Z0O_COD == cb8.c.CB8_PROD,
                         z0o.c.Z0O_LOCAL == cb8.c.CB8_LOCAL,
                     ),
                 )
             )
-            .where(
-                and_(
-                    cb8.c.D_E_L_E_T_ == " ",
-                    cb8.CB8_FILIAL == "01",
-                    cb8.c.CB8_ORDSEP == ordem_separacao,
-                    cb8.c.CB8_ITEM > item_anterior,
-                )
-            )
+            .where(and_(*condicao))
             .group_by(
                 cb8.c.CB8_ITEM,
                 cb8.c.CB8_PROD,
@@ -353,7 +355,7 @@ class OrdensSeparacao:
             update(cb7)
             .where(
                 and_(
-                    cb7.c.D_E_L_E_T_ == "",
+                    cb7.c.D_E_L_E_T_ == " ",
                     cb7.c.CB7_FILIAL == "01",
                     cb7.c.CB7_ORDSEP == ordem_separacao,
                 )
@@ -427,7 +429,7 @@ class OrdensSeparacao:
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Falha recuperando saldo da sepração no registro da contagem {e}",
+                detail=f"Falha recuperando saldo da separação no registro da contagem {e}",
             )
 
         if resultado:
@@ -513,7 +515,7 @@ def recupera_posicoes(
         select(z0o.c.Z0O_POSICA)
         .where(
             and_(
-                z0o.c.D_E_L_E_T_ == "",
+                z0o.c.D_E_L_E_T_ == " ",
                 z0o.c.Z0O_FILIAL == "01",
                 z0o.c.Z0O_COD == codigo_produto,
                 z0o.c.Z0O_LOCAL == almoxarifado,
@@ -561,22 +563,43 @@ def lista_ordens_separacao(
     "/separar/{ordem_separacao}",
     summary="Processo de registro da separação de materiais",
 )
+@ordens_separacao_router.post(
+    "/separar/{ordem_separacao}/{item}",
+    summary="Processo de registro da separação de materiais",
+)
+@ordens_separacao_router.post(
+    "/pular_item/{ordem_separacao}/{item_anterior}",
+    summary="Pula o item enviado retornando o próximo item",
+)
 def separar(
     ordem_separacao: str,
+    item: Optional[str] = Path(default=None),
+    item_anterior: Optional[str] = Path(default=None),
     x_cliente_token: str = Header(
         alias="X-Cliente-Token", title="Chave de identificação do cliente"
     ),
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
-) -> List[ItemOrdemSeparacao]:
+) -> Union[List[ItemOrdemSeparacao], Response]:
     if not valida_chave_coletor(x_cliente_token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"
         )
 
     ordens_separacao = OrdensSeparacao(db=db)
-    ordens_separacao.atualiza_operador(ordem_separacao, payload.get("sub"))
-    return ordens_separacao.recupera_itens(ordem_separacao)
+    # Se o item não é nulo, significa que a separação já foi iniciada
+    if not item:
+        ordens_separacao.atualiza_operador(ordem_separacao, payload.get("sub"))
+
+    itens_recuperados = ordens_separacao.recupera_itens(
+        ordem_separacao, item=item, item_anterior=item_anterior
+    )
+
+    if itens_recuperados:
+        return itens_recuperados
+
+    else:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @ordens_separacao_router.post(
@@ -610,7 +633,7 @@ def registra_separacao(
     ),
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
-):
+) -> Union[ItemOrdemSeparacao, Response]:
     if not valida_chave_coletor(x_cliente_token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"

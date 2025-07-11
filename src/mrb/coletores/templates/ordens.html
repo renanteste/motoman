@@ -78,7 +78,7 @@
   <script>
     function confirmarInicio(ordem_separacao) {
       if (confirm("Deseja iniciar a separação da ordem " + ordem_separacao + "?")) {
-        window.location.href = "/inicia_separacao?ordem_separacao=" + encodeURIComponent(ordem_separacao);
+        window.location.href = "/inicia_separacao/" + encodeURIComponent(ordem_separacao);
       }
     }
   </script>
