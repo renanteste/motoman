@@ -594,7 +594,9 @@ class OrdensSeparacao:
                     .where(cb8u.c.R_E_C_N_O_ == resultado.REGCB8)
                     .values(
                         CB8_SALDOS=max(
-                            Decimal(str(resultado.CB8_SALDOS)) - quantidade, Decimal(0)
+                            Decimal(str(resultado.CB8_SALDOS))
+                            - Decimal(str(quantidade)),
+                            Decimal(0),
                         )
                     )
                 )
