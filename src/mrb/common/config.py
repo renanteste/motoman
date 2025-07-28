@@ -34,6 +34,9 @@ class ApiConfiguration:
     class Coletores:
         HOST = "0.0.0.0"
         PORT = 63001
+        HOST_BACKEND = "0.0.0.0"
+        PORT_BACKEND = 63002
+        QUANTIDADE_WORKERS = 1
 
         class Certificado:
             # Se informados os arquivos, a solução subirá como https

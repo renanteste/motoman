@@ -1,31 +1,50 @@
 import base64
-from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import List, Optional
+from typing import List
 from fastapi import FastAPI, Form, HTTPException, Path, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from urllib.parse import quote
 import requests
 import uvicorn
 
+from src.mrb.coletores.api.prepara_response import PreparaResponse
+from src.mrb.common.lib.calcula_max_age import calcula_max_age
 from src.mrb.common.security.auth_service import valida_token
 from src.mrb.common.config import ApiConfiguration, Environment
-from src.mrb.coletores.api.ordens_separacao import ordens_separacao_router
 
 app = FastAPI()
-app.include_router(ordens_separacao_router)
 templates = Jinja2Templates(directory="src\\mrb\\coletores\\templates")
+
+LEGENDA_PRIORIDADE = [
+    '<span style="color: red;">🔺🔺🔺🔺🔺</span>',
+    '<span style="color: red;">🔺🔺🔺🔺</span>',
+    '<span style="color: red;">🔺🔺🔺</span>',
+    '<span style="color: red;">🔺🔺</span>',
+    '<span style="color: red;">🔺</span>',
+    '<span style="color: red;">🔻</span>',
+    '<span style="color: red;">🔻🔻</span>',
+    '<span style="color: red;">🔻🔻🔻</span>',
+    '<span style="color: red;">🔻🔻🔻🔻</span>',
+    '<span style="color: red;">🔻🔻🔻🔻🔻</span>',
+]
 
 
 def retorno_separacao(
-    request: Request, retorno_separacao: dict, nome_usuario: str, endereco_coletado: str
+    request: Request,
+    retorno_separacao: dict,
+    nome_usuario: str,
+    endereco_coletado: str,
+    ordem_separacao: str,
 ):
+    saldo_separar = quantidade_float(retorno_separacao["saldo_separar"])
     enderecos_alternativos = retorno_separacao.get("enderecos_alternativos") or []
     parametros = {
-        "ordem_separacao": retorno_separacao["ordem_separacao"],
+        "request": request,
+        "ordem_separacao": ordem_separacao,
         "item": retorno_separacao["item"],
         "codigo_produto": retorno_separacao["codigo_produto"],
-        "saldo_separar": retorno_separacao["saldo_separar"],
+        "saldo_separar": saldo_separar,
         "almoxarifado": retorno_separacao["almoxarifado"],
         "pedido": retorno_separacao.get("pedido", ""),
         "sequencia_pedido": retorno_separacao.get("sequencia_pedido", ""),
@@ -39,20 +58,34 @@ def retorno_separacao(
         # Se a posicao do proximo item for igual a posição coletada anteriormente, ou se a posição coletada
         # anteriormente estiver entre os endereços alternativos do item atual, mandar contar o novo item
         parametros["endereco_coletado"] = endereco_coletado
-        return templates.TemplateResponse(
+        return_response = templates.TemplateResponse(
             "contagem.html",
             parametros,
         )
 
     else:
         # Caso contrário, se a posição for diferente, mandar o usuário bipar novo endereço
-        parametros["request"] = request
         parametros["posicao"] = retorno_separacao["posicao"]
-        return templates.TemplateResponse("endereco.html", parametros)
+        return_response = templates.TemplateResponse("endereco.html", parametros)
+
+    return return_response
+
+
+def quantidade_float(quantidade_string: str) -> float:
+    try:
+        quantidade_float = float(quantidade_string)
+
+    except InvalidOperation as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Valor inválido para conversão float: {e}",
+        )
+
+    return quantidade_float
 
 
 @app.get("/", include_in_schema=False)
-def tela_login(request: Request):
+def tela_login(request: Request, mensagem: str = None):
     """
     Abertura do template login.html para interface de identificação do usuário
     """
@@ -66,92 +99,115 @@ def tela_login(request: Request):
         except:
             pass
 
-    response = templates.TemplateResponse(
-        "login.html", {"request": request, "ja_autenticado": autenticado}
-    )
+    parametros_response = {"request": request, "ja_autenticado": autenticado}
+    if mensagem:
+        parametros_response["erro"] = mensagem
+
+    response = templates.TemplateResponse("login.html", parametros_response)
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
 @app.get("/ordens", include_in_schema=False)
-def lista_ordens_separacao(request: Request):
+async def lista_ordens_separacao(request: Request):
     try:
-        token = request.cookies.get("access_token")
+        prepara_response = PreparaResponse(request=request)
+        if not prepara_response.valida_tokens():
+            return await logout(mensagem="Token de acesso inválido / expirado!")
 
-        if not token:
-            return logout()
-
-        response = requests.get(
-            f"http://localhost:{ApiConfiguration.Coletores.PORT}/ordens_separacao",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "X-Cliente-Token": Environment.CHAVE_COLETOR,
-            },
+        response = prepara_response.exec_request(
+            url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/ordens_separacao",
+            metodo="get",
+            headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
         )
 
         if response.status_code == status.HTTP_200_OK:
             ordens = response.json()
-            return templates.TemplateResponse(
-                "ordens.html",
-                {
-                    "request": request,
-                    "ordens": ordens["ordens_separacao"],
-                    "usuario_nome": request.cookies.get("nome_usuario", ""),
-                },
+
+            for ordem in ordens["ordens_separacao"]:
+                ordem["legenda_prioridade"] = LEGENDA_PRIORIDADE[
+                    int(ordem.get("prioridade", "0"))
+                ]
+
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "ordens.html",
+                    {
+                        "request": request,
+                        "ordens": ordens["ordens_separacao"],
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                )
             )
 
         elif response.status_code == status.HTTP_401_UNAUTHORIZED:
-            return logout()
+            return await logout(
+                mensagem=response.json().get("detail", "Não autorizado!")
+            )
 
         else:
-            return templates.TemplateResponse(
-                "ordens.html",
-                {
-                    "request": request,
-                    "erro": f"Erro recuperando a fila de separação: {response.status_code}",
-                },
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "ordens.html",
+                    {
+                        "request": request,
+                        "erro": f"Erro recuperando a fila de separação: {response.status_code}",
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                )
             )
 
     except requests.RequestException as e:
         return templates.TemplateResponse(
             "ordens.html",
-            {"request": request, "erro": f"Falha ao recuperar fila de separação: {e}"},
+            {
+                "request": request,
+                "erro": f"Falha ao recuperar fila de separação: {e}",
+                "usuario_nome": prepara_response.nome_usuario,
+            },
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
 
 @app.get("/inicia_separacao/{ordem_separacao}", include_in_schema=False)
+async def inicia_separacao(request: Request, ordem_separacao: str = Path(...)):
+    return await inicia_separacao_item(
+        request=request, ordem_separacao=ordem_separacao, item=None
+    )
+
+
 @app.get("/inicia_separacao/{ordem_separacao}/{item}", include_in_schema=False)
-def inicia_separacao(
-    request: Request, ordem_separacao: str, item: Optional[str] = Path(default=None)
+async def inicia_separacao_item(
+    request: Request, ordem_separacao: str = Path(...), item: str = Path(...)
 ):
-    token = request.cookies.get("access_token")
-    if not token:
-        return logout()
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
 
     try:
         # Recupera o item da ordem de separação
-        url = f"http://localhost:{ApiConfiguration.Coletores.PORT}/separar/{ordem_separacao}"
+        url = f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/separar/{ordem_separacao}"
         if item:
             url += f"/{item}"
 
-        response = requests.post(
+        response = prepara_response.exec_request(
             url=url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "X-Cliente-Token": Environment.CHAVE_COLETOR,
-            },
+            metodo="post",
+            headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
         )
 
         if response.status_code == status.HTTP_200_OK:
             itens: List[dict] = response.json()
             if not itens:
-                return templates.TemplateResponse(
-                    "ordens.html",
-                    {
-                        "request": request,
-                        "erro": f"Sem itens para a ordem {ordem_separacao}",
-                    },
+                return prepara_response.retorna_response(
+                    templates.TemplateResponse(
+                        "ordens.html",
+                        {
+                            "request": request,
+                            "erro": f"Sem itens para a ordem {ordem_separacao}",
+                            "usuario_nome": prepara_response.nome_usuario,
+                        },
+                    )
                 )
 
             else:
@@ -165,7 +221,7 @@ def inicia_separacao(
                     "almoxarifado": itens[0]["almoxarifado"],
                     "pedido": itens[0]["pedido"],
                     "sequencia_pedido": itens[0]["sequencia_pedido"],
-                    "usuario_nome": request.cookies.get("nome_usuario", ""),
+                    "usuario_nome": prepara_response.nome_usuario,
                 }
                 if itens[0].get("enderecos_alternativos"):
                     parametros["enderecos_alternativos"] = "|".join(
@@ -173,39 +229,59 @@ def inicia_separacao(
                         for endereco in itens[0].get("enderecos_alternativos", [])
                     )
 
-                return templates.TemplateResponse(
-                    "endereco.html",
-                    parametros,
+                return prepara_response.retorna_response(
+                    templates.TemplateResponse("endereco.html", parametros)
                 )
 
         elif response.status_code == status.HTTP_409_CONFLICT:
-            return templates.TemplateResponse(
-                "ordens.html", {"request": request, "erro": response.json()["detail"]}
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "ordens.html",
+                    {
+                        "request": request,
+                        "erro": response.json()["detail"],
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                )
             )
 
         elif response.status_code == status.HTTP_401_UNAUTHORIZED:
-            return logout()
+            return await logout(
+                mensagem=response.json().get("detail", "Não autorizado!")
+            )
 
         else:
-            return templates.TemplateResponse(
-                "ordens.html",
-                {
-                    "request": request,
-                    "erro": f"Falha ao iniciar separação: {response.status_code}",
-                },
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "ordens.html",
+                    {
+                        "request": request,
+                        "erro": f"Falha ao iniciar separação: {response.status_code} - {response.json()['detail']}",
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                )
             )
 
     except requests.RequestException as e:
         return templates.TemplateResponse(
             "ordens.html",
-            {"request": request, "erro": f"Erro ao inicar separação: {e}"},
+            {
+                "request": request,
+                "erro": f"Erro ao inicar separação: {e}",
+                "usuario_nome": prepara_response.nome_usuario,
+            },
         )
 
 
 @app.post("/logout", include_in_schema=False)
-async def logout():
-    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+async def logout(mensagem: str = None):
+    url = "/"
+    if mensagem:
+        url += f"?mensagem={quote(mensagem)}"
+
+    response = RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
     response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
     return response
 
 
@@ -224,21 +300,20 @@ async def processa_login(
         )
 
         if response_auth.status_code == status.HTTP_200_OK:
-            token = response_auth.json()["dados_autenticacao"]["token"]
-            payload = valida_token(token)
+            dados_autenticacao: dict = response_auth.json()["dados_autenticacao"]
+            payload = valida_token(dados_autenticacao["token"])
+            payload_refresh = valida_token(dados_autenticacao["refresh_token"])
             response = RedirectResponse(
                 url="/ordens", status_code=status.HTTP_302_FOUND
             )
             # Cria um cookie com o token e a mesma validade dele
             response.set_cookie(
                 key="access_token",
-                value=token,
+                value=dados_autenticacao["token"],
                 httponly=True,
                 secure=request.url.scheme == "https",
                 samesite="lax",
-                max_age=max(
-                    0, int(payload.get("exp") - datetime.now(timezone.utc).timestamp())
-                ),
+                max_age=calcula_max_age(payload.get("exp")),
             )
             # Cria um cookie com o nome do usuário logado
             response.set_cookie(
@@ -246,10 +321,18 @@ async def processa_login(
                 value=response_auth.json()["dados_usuario"]["nome_usuario"].title(),
                 secure=request.url.scheme == "https",
                 samesite="lax",
-                max_age=max(
-                    0, int(payload.get("exp") - datetime.now(timezone.utc).timestamp())
-                ),
+                max_age=calcula_max_age(payload.get("exp")),
             )
+            # Cria um cookie com o refresh token
+            response.set_cookie(
+                key="refresh_token",
+                value=dados_autenticacao["refresh_token"],
+                httponly=True,
+                secure=request.url.scheme == "https",
+                samesite="lax",
+                max_age=calcula_max_age(payload_refresh.get("exp")),
+            )
+
             return response
 
         else:
@@ -282,34 +365,26 @@ async def grava_separacao(
     sequencia_pedido: str = Form(...),
     endereco_coletado: str = Form(...),
 ):
-    token = request.cookies.get("access_token")
-    nome_usuario = request.cookies.get("nome_usuario", "")
-    if not token:
-        return logout()
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
 
     try:
-        try:
-            quantidade_separada_decimal = Decimal(quantidade_separada)
-
-        except InvalidOperation as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Valor inválido para 'quantidade_separada': {e}",
-            )
+        quantidade_separada_float = quantidade_float(quantidade_separada)
 
         # Registra a separação no endpoint registra_separacao
-        response = requests.post(
-            f"http://localhost:{ApiConfiguration.Coletores.PORT}/registra_separacao",
+        response = prepara_response.exec_request(
+            url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/registra_separacao",
+            metodo="post",
             headers={
-                "Authorization": f"Bearer {token}",
                 "X-Cliente-Token": Environment.CHAVE_COLETOR,
                 "Content-Type": "application/json",
             },
-            json={
+            dados={
                 "ordem_separacao": ordem_separacao,
                 "item": item,
                 "codigo_produto": codigo_produto,
-                "quantidade_separada": quantidade_separada_decimal,
+                "quantidade_separada": quantidade_separada_float,
                 "almoxarifado": almoxarifado,
                 "pedido": pedido,
                 "sequencia_pedido": sequencia_pedido,
@@ -317,35 +392,45 @@ async def grava_separacao(
         )
 
         if response.status_code == status.HTTP_401_UNAUTHORIZED:
-            return logout()
+            return await logout(
+                mensagem=response.json().get("detail", "Não autorizado!")
+            )
 
         elif response.status_code == status.HTTP_204_NO_CONTENT:
             # Ordem de separação gravada sem retornar novos itens, é ordem finalizada
-            return RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
+            return prepara_response.retorna_response(
+                RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
+            )
 
         elif not response.status_code == status.HTTP_200_OK:
-            return templates.TemplateResponse(
-                "contagem.html",
-                {
-                    "ordem_separacao": ordem_separacao,
-                    "item": item,
-                    "codigo_produto": codigo_produto,
-                    "saldo_separar": quantidade_separada_decimal,
-                    "almoxarifado": almoxarifado,
-                    "pedido": pedido,
-                    "sequencia_pedido": sequencia_pedido,
-                    "endereco_coletado": endereco_coletado,
-                    "usuario_nome": nome_usuario,
-                    "erro": f"Não gravado: {response.status_code} - {response.json()['detail']}",
-                },
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "contagem.html",
+                    {
+                        "request": request,
+                        "ordem_separacao": ordem_separacao,
+                        "item": item,
+                        "codigo_produto": codigo_produto,
+                        "saldo_separar": quantidade_separada_float,
+                        "almoxarifado": almoxarifado,
+                        "pedido": pedido,
+                        "sequencia_pedido": sequencia_pedido,
+                        "endereco_coletado": endereco_coletado,
+                        "usuario_nome": prepara_response.nome_usuario,
+                        "erro": f"Não gravado: {response.status_code} - {response.json()['detail']}",
+                    },
+                )
             )
 
         # O retorno da separação gravada com sucesso é do próximo item
-        return retorno_separacao(
-            request=request,
-            retorno_separacao=response.json(),
-            nome_usuario=nome_usuario,
-            endereco_coletado=endereco_coletado,
+        return prepara_response.retorna_response(
+            retorno_separacao(
+                request=request,
+                retorno_separacao=response.json(),
+                nome_usuario=prepara_response.nome_usuario,
+                endereco_coletado=endereco_coletado,
+                ordem_separacao=ordem_separacao,
+            )
         )
 
     except Exception as e:
@@ -356,7 +441,7 @@ async def grava_separacao(
 
 
 @app.post("/pular", include_in_schema=False)
-def pular_item(
+async def pular_item(
     request: Request,
     ordem_separacao: str = Form(...),
     item: str = Form(...),
@@ -367,66 +452,70 @@ def pular_item(
     sequencia_pedido: str = Form(...),
     endereco_coletado: str = Form(...),
 ):
-    token = request.cookies.get("access_token")
-    nome_usuario = request.cookies.get("nome_usuario", "")
-    if not token:
-        logout()
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
 
     # Aciona o endpoint pular_item e se retornar algum item, redireciona para a contagem
     try:
-        response = requests.post(
-            url=f"http://localhost:{ApiConfiguration.Coletores.PORT}/pular_item/{ordem_separacao}/{item}",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "X-Cliente-Token": Environment.CHAVE_COLETOR,
-            },
+        response = prepara_response.exec_request(
+            url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/pular_item/{ordem_separacao}/{item}",
+            metodo="post",
+            headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
         )
 
         if response.status_code == status.HTTP_401_UNAUTHORIZED:
-            logout()
+            return await logout(
+                mensagem=response.json().get("detail", "Não autorizado!")
+            )
 
         elif response.status_code == status.HTTP_204_NO_CONTENT:
             # Ordem de separação gravada sem retornar novos itens, é que chegou ao final
-            return RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
+            return prepara_response.retorna_response(
+                RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
+            )
 
         elif not response.status_code == status.HTTP_200_OK:
             # Em caso de falha ao pular o item, retorna os dados anteriores
-            try:
-                quantidade_separada_decimal = Decimal(quantidade_separada)
+            quantidade_separada_float = quantidade_float(quantidade_separada)
 
-            except InvalidOperation as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Valor inválido para 'quantidade_separada': {e}",
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "contagem.html",
+                    {
+                        "request": request,
+                        "ordem_separacao": ordem_separacao,
+                        "item": item,
+                        "codigo_produto": codigo_produto,
+                        "saldo_separar": quantidade_separada_float,
+                        "almoxarifado": almoxarifado,
+                        "pedido": pedido,
+                        "sequencia_pedido": sequencia_pedido,
+                        "endereco_coletado": endereco_coletado,
+                        "usuario_nome": prepara_response.nome_usuario,
+                        "erro": f"Falha ao pular {response.status_code} - {response.json()['detail']}",
+                    },
                 )
-
-            return templates.TemplateResponse(
-                "contagem.html",
-                {
-                    "ordem_separacao": ordem_separacao,
-                    "item": item,
-                    "codigo_produto": codigo_produto,
-                    "saldo_separar": quantidade_separada_decimal,
-                    "almoxarifado": almoxarifado,
-                    "pedido": pedido,
-                    "sequencia_pedido": sequencia_pedido,
-                    "endereco_coletado": endereco_coletado,
-                    "usuario_nome": nome_usuario,
-                    "erro": f"Falha ao pular {response.status_code} - {response.json()['detail']}",
-                },
             )
 
-        return retorno_separacao(
-            request=request,
-            retorno_separacao=response.json()[0],
-            nome_usuario=nome_usuario,
-            endereco_coletado=endereco_coletado,
+        return prepara_response.retorna_response(
+            retorno_separacao(
+                request=request,
+                retorno_separacao=response.json()[0],
+                nome_usuario=prepara_response.nome_usuario,
+                endereco_coletado=endereco_coletado,
+                ordem_separacao=ordem_separacao,
+            )
         )
 
     except requests.RequestException as e:
         return templates.TemplateResponse(
             "ordens.html",
-            {"request": request, "erro": f"Erro ao pular item: {e}"},
+            {
+                "request": request,
+                "erro": f"Erro ao pular item: {e}",
+                "usuario_nome": prepara_response.nome_usuario,
+            },
         )
 
 
@@ -442,32 +531,26 @@ async def contagem(
     sequencia_pedido: str = Form(...),
     endereco_coletado: str = Form(...),
 ):
-    token = request.cookies.get("access_token")
-    if not token:
-        return logout()
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
 
     try:
-        try:
-            saldo_decimal = Decimal(saldo_separar)
-
-        except InvalidOperation as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Valor inválido para 'saldo_separar': {e}",
-            )
+        saldo_float = quantidade_float(saldo_separar)
 
         return templates.TemplateResponse(
             "contagem.html",
             {
+                "request": request,
                 "ordem_separacao": ordem_separacao,
                 "item": item,
                 "codigo_produto": codigo_produto,
-                "saldo_separar": saldo_decimal,
+                "saldo_separar": saldo_float,
                 "almoxarifado": almoxarifado,
                 "pedido": pedido,
                 "sequencia_pedido": sequencia_pedido,
                 "endereco_coletado": endereco_coletado,
-                "usuario_nome": request.cookies.get("nome_usuario", ""),
+                "usuario_nome": prepara_response.nome_usuario,
             },
         )
 
@@ -480,43 +563,59 @@ async def contagem(
 
 @app.post("/pausar", include_in_schema=False)
 async def pausar(request: Request, ordem_separacao: str = Form(...)):
-    token = request.cookies.get("access_token")
-    if not token:
-        return logout()
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
 
     try:
-        response = requests.post(
-            url=f"http://localhost:{ApiConfiguration.Coletores.PORT}/pausar_separacao/{ordem_separacao}",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "X-Cliente-Token": Environment.CHAVE_COLETOR,
-            },
+        response = prepara_response.exec_request(
+            url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/pausar_separacao/{ordem_separacao}",
+            metodo="post",
+            headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
         )
 
         if response.status_code == status.HTTP_200_OK:
-            return RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
-
-        elif response.status_code == status.HTTP_409_CONFLICT:
-            return templates.TemplateResponse(
-                "ordens.html", {"request": request, "erro": response.json()["detail"]}
+            return prepara_response.retorna_response(
+                RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
             )
 
         elif response.status_code == status.HTTP_401_UNAUTHORIZED:
-            return logout()
+            return await logout(
+                mensagem=response.json().get("detail", "Não autorizado!")
+            )
+
+        elif response.status_code == status.HTTP_409_CONFLICT:
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "ordens.html",
+                    {
+                        "request": request,
+                        "erro": response.json()["detail"],
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                )
+            )
 
         else:
-            return templates.TemplateResponse(
-                "ordens.html",
-                {
-                    "request": request,
-                    "erro": f"Falha ao iniciar separação: {response.status_code}",
-                },
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "ordens.html",
+                    {
+                        "request": request,
+                        "erro": f"Falha ao pausar a separação: {response.status_code} - {response.json()['detail']}",
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                )
             )
 
     except requests.RequestException as e:
         return templates.TemplateResponse(
             "ordens.html",
-            {"request": request, "erro": f"Erro ao pausar separação: {e}"},
+            {
+                "request": request,
+                "erro": f"Erro ao pausar separação: {e}",
+                "usuario_nome": prepara_response.nome_usuario,
+            },
         )
 
 
@@ -525,6 +624,7 @@ if __name__ == "__main__":
         "app": "main:app",
         "host": ApiConfiguration.Coletores.HOST,
         "port": ApiConfiguration.Coletores.PORT,
+        "workers": ApiConfiguration.Coletores.QUANTIDADE_WORKERS,
     }
 
     # Sobe o serviço como https apenas se o certificado digital estiver configurado no config.py

@@ -89,14 +89,14 @@
 
   <div class="manual">
     <input type="text" id="endereco_coletado" placeholder="Digite o endereço" />
-    <button onclick="confirmarEndereco()">Confirmar</button>
+    <button id="botao_confirmar">Confirmar</button>
   </div>
 
   <script>
     function validarEndereco(enderecoParametro) {
       const endereco = enderecoParametro.trim().toUpperCase();
-      const enderecoPrincipal = "{{ posicao | escapejs }}".trim().toUpperCase();
-      const enderecosAlternativos = "{{ enderecos_alternativos | default('') | escapejs }}".split("|").map(e => e.trim().toUpperCase()).filter(e => e);
+      const enderecoPrincipal = "{{ posicao }}".trim().toUpperCase();
+      const enderecosAlternativos = "{{ enderecos_alternativos | default('') }}".split("|").map(e => e.trim().toUpperCase()).filter(e => e);
       return endereco === enderecoPrincipal || enderecosAlternativos.includes(endereco);
     }
 
@@ -104,17 +104,17 @@
       document.querySelector("form#envioContagem")?.remove();
       const formulario = document.createElement("form");
       formulario.id = "envioContagem"
-      formulario.method = "POST";
-      formulario.action("/contagem");
+      formulario.method = "post";
+      formulario.action = "/contagem";
 
       const camposFormulario = {
-        ordem_separacao: "{{ ordem_separacao | escapejs }}",
-        item: "{{ item | escapejs }}",
-        codigo_produto: "{{ codigo_produto | escapejs }}",
-        saldo_separar: "{{ saldo_separar | escapejs }}",
-        almoxarifado: "{{ almoxarifado | escapejs }}",
-        pedido: "{{ pedido | escapejs }}",
-        sequencia_pedido: "{{ sequencia_pedido | escapejs }}",
+        ordem_separacao: "{{ ordem_separacao }}",
+        item: "{{ item }}",
+        codigo_produto: "{{ codigo_produto }}",
+        saldo_separar: "{{ saldo_separar }}",
+        almoxarifado: "{{ almoxarifado }}",
+        pedido: "{{ pedido }}",
+        sequencia_pedido: "{{ sequencia_pedido }}",
         endereco_coletado: enderecoColetado
       };
 
@@ -160,6 +160,10 @@
       }
     ).catch(err => {
       alert("Erro ao acessar a câmera: " + err);
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("botao_confirmar").addEventListener("click", confirmarEndereco)
     });
   </script>
 </body>

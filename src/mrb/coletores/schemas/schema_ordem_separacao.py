@@ -29,6 +29,13 @@ class OrdemSeparacao(BaseModel):
         examples=["CELNAC012124A"],
         description="Código do produto resultado do projeto",
     )
+    prioridade: str = Field(
+        ...,
+        min_length=1,
+        max_length=1,
+        examples=["0", "5", "9"],
+        description="Prioridade como string entre '0' e '9'",
+    )
     pedido_vendas: Optional[str] = Field(
         None,
         max_length=6,
@@ -47,8 +54,13 @@ class OrdemSeparacao(BaseModel):
         examples=["COMPRADOS"],
         description="Código que identifica o contêiner relacionado à ordem de separação",
     )
+    label: Optional[str] = Field(
+        None,
+        examples=["1:Divergência", "2:Em pausa"],
+        description="Etiqueta que identifica a situação da ordem de separação",
+    )
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
 
 
 class ItemOrdemSeparacao(BaseModel):

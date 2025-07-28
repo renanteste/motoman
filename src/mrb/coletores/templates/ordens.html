@@ -40,6 +40,52 @@
     .linha {
       margin-bottom: 5px;
     }
+
+    .status-bar {
+      height: 10px;
+      border-radius: 0 0 6px 6px;
+      margin-top: 10px;
+    }
+
+    /* Divergência */
+    .status-bar.status-1 {
+      background-color: #d9534f;
+    }
+
+    /* Em pausa */
+    .status-bar.status-2 {
+      background-color: #999ca0;
+    }
+
+    /* Finalizada */
+    .status-bar.status-3 {
+      background-color: #5cb85c;
+    }
+
+    /* Em andamento */
+    .status-bar.status-4 {
+      background-color: #cddc39;
+    }
+
+    /* Impressa */
+    .status-bar.status-5 {
+      background-color: #dc35c6;
+    }
+
+    /* Não iniciada */
+    .status-bar.status-6 {
+      background-color: #007bff;
+    }
+
+    /* Encerrada - contêiner não entregue */
+    .status-bar.status-7 {
+      background-color: #fd7e14;
+    }
+
+    /* Encerrada - entregue */
+    .status-bar.status-8 {
+      background-color: #000000;
+    }
   </style>
 </head>
 
@@ -62,16 +108,43 @@
   <div style="color: red; text-align: center; margin-bottom: 1rem;">
     {{ erro }}
   </div>
+  <div style="text-align: center; margin-bottom: 1rem;">
+    <button onclick="fecharErro()" style="
+        background-color: #007BFF;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        font-size: 1em;
+        border-radius: 4px;
+        cursor: pointer;
+      ">
+      Fechar
+    </button>
+  </div>
+  <script>
+    function fecharErro() {
+      window.location.href = "/ordens";
+    }
+  </script>
   {% endif %}
 
   {% for ordem in ordens%}
   <div class="ordem" onclick="confirmarInicio('{{ ordem.ordem_separacao }}')">
-    <div class="linha"><strong>Número:</strong> {{ ordem.ordem_separacao }}</div>
+    <div class="linha" style="display: flex; justify-content: space-between;">
+      <span><strong>Número:</strong> {{ ordem.ordem_separacao }}</span>
+      {{ ordem.legenda_prioridade | safe }}
+    </div>
     <div class="linha"><strong>Pedido:</strong> {{ ordem.pedido_vendas or "-" }}</div>
     <div class="linha"><strong>Cliente:</strong> {{ ordem.nome_cliente or "-" }}</div>
     <div class="linha"><strong>Projeto:</strong> {{ ordem.projeto }}</div>
     <div class="linha"><strong>Célula:</strong> {{ ordem.celula }}</div>
     <div class="linha"><strong>Contêiner:</strong> {{ ordem.conteiner or "-" }}</div>
+    <div class="linha"><strong>Status:</strong> {{ ordem.label.split(":", 1)[1] }}</div>
+    <div class="status-bar status-{{ ordem.label.split(':', 1)[0] }}"></div>
+  </div>
+  {% else %}
+  <div style="text-align: center; font-size: 1.1em; color: #666; margin-top: 2rem;">
+    Sem ordens na fila.
   </div>
   {% endfor %}
 
@@ -85,7 +158,7 @@
   <script>
     setInterval(() => {
       window.location.reload();
-    }, 300000);
+    }, 60000);
   </script>
 </body>
 

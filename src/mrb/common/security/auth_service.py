@@ -52,16 +52,28 @@ class AuthService:
         self.usuario_autenticado: bool
         self.autenticacao = DadosAutenticacao()
 
-    def gera_token(self) -> DadosAutenticacao:
+    def gera_token(self, ip_origem: str) -> DadosAutenticacao:
         dados_autenticacao = DadosAutenticacao()
         try:
-            dados_autenticacao.validade = datetime.now(pytz.UTC) + timedelta(minutes=30)
-            payload = {
-                "sub": self.dados_usuario.id_usuario,
-                "exp": dados_autenticacao.validade,
-            }
+            base_validade = datetime.now(pytz.UTC)
+            dados_autenticacao.validade = base_validade + timedelta(minutes=30)
+            dados_autenticacao.validade_refresh = base_validade + timedelta(days=1)
             dados_autenticacao.token = jwt.encode(
-                payload, Environment.PORTAL_PY_K, algorithm="HS256"
+                {
+                    "sub": self.dados_usuario.id_usuario,
+                    "exp": dados_autenticacao.validade,
+                },
+                Environment.PORTAL_PY_K,
+                algorithm="HS256",
+            )
+            dados_autenticacao.refresh_token = jwt.encode(
+                {
+                    "sub": self.dados_usuario.id_usuario,
+                    "exp": dados_autenticacao.validade_refresh,
+                    "ip": ip_origem,
+                },
+                Environment.PORTAL_PY_K,
+                algorithm="HS256",
             )
 
         except Exception as e:
@@ -109,11 +121,30 @@ class AuthService:
 
         return tem_acesso
 
-    def recupera_dados_usuario(self, conta_usuario: str):
+    def recupera_dados_usuario(self, conta_usuario: str = None, id_usuario: str = None):
         szk = aliased(usuarios_szk, name="szk")
         szl = aliased(usuarios_szl, name="szl")
         sa3 = aliased(vendedores_sa3, name="sa3")
         ae8 = aliased(recursos_ae8, name="ae8")
+
+        where_szk = [
+            szk.c.D_E_L_E_T_ == " ",
+            szk.c.ZK_FILIAL == " ",
+        ]
+        if conta_usuario:
+            where_szk.append(
+                szk.c.ZK_EMAIL == conta_usuario,
+            )
+
+        elif id_usuario:
+            where_szk.append(szk.c.ZK_ID == id_usuario)
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Identificação do usuário inválida!",
+            )
+
         query = (
             Select(
                 szk.c.ZK_ID,
@@ -161,11 +192,7 @@ class AuthService:
                 ),
                 isouter=True,
             )
-            .where(
-                szk.c.D_E_L_E_T_ == " ",
-                szk.c.ZK_FILIAL == " ",
-                szk.c.ZK_EMAIL == conta_usuario,
-            )
+            .where(and_(*where_szk))
         )
         dados_usuario = self.db.execute(query).fetchone()
         if dados_usuario:
@@ -279,7 +306,11 @@ class AuthService:
         return usuario_erp
 
     def autentica_usuario(
-        self, conta_usuario: str, senha_informada: str, chave_cliente: str = None
+        self,
+        conta_usuario: str,
+        senha_informada: str,
+        ip_origem: str,
+        chave_cliente: str = None,
     ):
         usuario_erp: str = None
         # Identifica se a senha deve ser autenticada pelo Protheus
@@ -325,7 +356,7 @@ class AuthService:
             )
         else:
             self.usuario_autenticado = True
-            self.autenticacao = self.gera_token()
+            self.autenticacao = self.gera_token(ip_origem=ip_origem)
 
     def gera_nova_senha(self):
         szk = usuarios_szk
@@ -401,6 +432,55 @@ class AuthService:
             )
 
 
+@auth_router.post("/refresh_token")
+async def refresh_token(request: Request, db: Session = Depends(get_db)) -> dict:
+    try:
+        dados_request: dict = await request.json()
+        token_recebido = dados_request.get("refresh_token")
+        if not token_recebido:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Refresh token não enviado!",
+            )
+
+        payload: dict = jwt.decode(
+            token_recebido, Environment.PORTAL_PY_K, algorithms="HS256"
+        )
+        if not payload.get("ip") == request.client.host:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="IP de origem não autorizado para o refresh token.",
+            )
+
+        id_usuario = payload.get("sub")
+        if not id_usuario:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Id de usuário não enviado no refresh token",
+            )
+
+        auth_service = AuthService(db=db)
+        auth_service.recupera_dados_usuario(id_usuario=id_usuario)
+        token = auth_service.gera_token(ip_origem=request.client.host)
+        return {"token": token.token, "validade": token.validade}
+
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expirado"
+        )
+
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido"
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao renovar token: {e}",
+        )
+
+
 @auth_router.post("/auth")
 async def login_token(
     request: Request,
@@ -416,7 +496,10 @@ async def login_token(
 
         auth_service = AuthService(db)
         auth_service.autentica_usuario(
-            conta_usuario, senha_informada, chave_cliente=chave_cliente
+            conta_usuario,
+            senha_informada,
+            ip_origem=request.client.host,
+            chave_cliente=chave_cliente,
         )
         if auth_service.usuario_autenticado:
             resultado_autenticacao.dados_autenticacao = auth_service.autenticacao

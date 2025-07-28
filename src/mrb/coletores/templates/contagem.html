@@ -18,6 +18,7 @@
       font-size: 1.1em;
       text-align: center;
       margin-bottom: 0.5rem;
+      display: block;
     }
 
     .info strong {
@@ -27,10 +28,11 @@
     #formulario {
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: stretch;
       gap: 15px;
       margin: 0 auto 20px auto;
-      max-width: 100%;
+      width: 100%;
+      max-width: 400px;
     }
 
     .linha-quantidade {
@@ -42,9 +44,9 @@
 
     .linha-codigo {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 10px;
-      justify-content: center;
+      gap: 5px;
     }
 
     label {
@@ -111,15 +113,15 @@
   </div>
   {% endif %}
 
-  <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
-    <div style="font-size: 1em; color: #9e0303;">Operador:
+  <div style="display: inline; justify-content: space-between; align-items: center; padding: 10px;">
+    <div style="font-size: 1em; color: #9e0303; margin-bottom: 1rem;">Operador:
       {{ usuario_nome }}
     </div>
 
     <div class="info"><strong>Código:</strong> {{ codigo_produto }}</div>
     <div class="info"><strong>Separar:</strong> {{ saldo_separar }}</div>
 
-    <form id="formulario">
+    <form id="formulario" autocomplete="off">
       <div class="linha-quantidade">
         <label for="campo_quantidade">Separado:</label>
         <input type="number" id="campo_quantidade" name="quantidade" placeholder="Qtd."
@@ -128,7 +130,7 @@
       </div>
 
       <div class="linha-codigo">
-        <input type="text" id="campo_codigo" name="codigo" placeholder="Código" />
+        <input type="text" id="campo_codigo" name="codigo_do_produto" placeholder="Código" />
         <button type="button" class="btn-separar" onclick="separarItem()">Separar</button>
       </div>
     </form>
@@ -146,7 +148,7 @@
       function separarItem() {
         // Codigo lido ou digitado pelo operador
         const codigoItem = document.getElementById("campo_codigo").value.trim();
-        if (codigoItem !== "{{ codigo_produto | escapejs }}".trim()) {
+        if (codigoItem !== "{{ codigo_produto }}".trim()) {
           alert(`Código ${codigoItem} inválido!`);
           return;
         }
@@ -162,14 +164,14 @@
         formularioSeparacao.action = "/grava_separacao";
 
         const camposFormularioSeparacao = {
-          ordem_separacao: "{{ ordem_separacao | escapejs }}",
-          item: "{{ item | escapejs }}",
+          ordem_separacao: "{{ ordem_separacao }}",
+          item: "{{ item }}",
           codigo_produto: codigoItem,
           quantidade_separada: quantidade,
-          almoxarifado: "{{ almoxarifado | escapejs }}",
-          pedido: "{{ pedido | escapejs }}",
-          sequencia_pedido: "{{ sequencia_pedido | escapejs }}",
-          endereco_coletado: "{{ endereco_coletado | escapejs }}"
+          almoxarifado: "{{ almoxarifado }}",
+          pedido: "{{ pedido }}",
+          sequencia_pedido: "{{ sequencia_pedido }}",
+          endereco_coletado: "{{ endereco_coletado }}"
         };
 
         for (const chave in camposFormularioSeparacao) {
@@ -186,22 +188,21 @@
 
       function pularItem() {
         if (confirm("Confirma pular o item atual?")) {
-          // window.location.href = `/pular/${ordem_separacao}/${item}`
           document.querySelector("form#pularItemSeparacao")?.remove();
           const formularioPularItemSeparacao = document.createElement("form");
           formularioPularItemSeparacao.id = "form#pularItemSeparacao";
-          formularioPularItemSeparacao.method = "POST";
+          formularioPularItemSeparacao.method = "post";
           formularioPularItemSeparacao.action = "/pular"
 
           const camposFormularioPularItensSeparacao = {
-            ordem_separacao: "{{ ordem_separacao | escapejs }}",
-            item: "{{ item | escapejs }}",
-            codigo_produto: "{{ codigo_produto | escapejs }}",
-            quantidade_separada: "{{ saldo_separar | escapejs }}",
-            almoxarifado: "{{ almoxarifado | escapejs }}",
-            pedido: "{{ pedido | escapejs }}",
-            sequencia_pedido: "{{ sequencia_pedido | escapejs }}",
-            endereco_coletado: "{{ endereco_coletado | escapejs }}"
+            ordem_separacao: "{{ ordem_separacao }}",
+            item: "{{ item }}",
+            codigo_produto: "{{ codigo_produto }}",
+            quantidade_separada: "{{ saldo_separar }}",
+            almoxarifado: "{{ almoxarifado }}",
+            pedido: "{{ pedido }}",
+            sequencia_pedido: "{{ sequencia_pedido }}",
+            endereco_coletado: "{{ endereco_coletado }}"
           };
 
           for (const chave in camposFormularioPularItensSeparacao) {
@@ -223,7 +224,7 @@
         { facingMode: "environment" },
         { fps: 30, qrbox: 250 },
         (decodedText, decodedResult) => {
-          if (decodedText.trim() === "{{ codigo_produto | escapejs }}".trim()) {
+          if (decodedText.trim() === "{{ codigo_produto }}".trim()) {
             document.getElementById("campo_codigo").value = decodedText;
             separarItem();
           } else {
