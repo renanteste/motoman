@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import status
 from fastapi.responses import RedirectResponse
 from requests import Request, Response
@@ -10,7 +10,7 @@ from src.mrb.common.lib.calcula_max_age import calcula_max_age
 
 class PreparaResponse:
     def __init__(
-        self, request: Request, novo_token: str = None, nova_validade: datetime = None
+        self, request: Request, novo_token: str = None, nova_validade: int = None
     ) -> None:
         self.request = request
         self.novo_token = novo_token
@@ -75,8 +75,12 @@ class PreparaResponse:
 
             if response_refresh.status_code == status.HTTP_200_OK:
                 self.novo_token = response_refresh.json()["token"]
-                self.nova_validade = datetime.fromisoformat(
-                    response_refresh.json()["validade"]
+                self.nova_validade = int(
+                    datetime.strptime(
+                        response_refresh.json()["validade"], "%Y-%m-%dT%H:%M:%S.%fZ"
+                    )
+                    .replace(tzinfo=timezone.utc)
+                    .timestamp()
                 )
                 headers["Authorization"] = f"Bearer {self.novo_token}"
                 response = requests.request(

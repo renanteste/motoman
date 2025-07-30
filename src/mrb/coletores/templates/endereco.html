@@ -57,6 +57,17 @@
 </head>
 
 <body>
+  <script>
+    // trava o botão Voltar antes de tudo
+    (function () {
+      history.replaceState(null, "", location.href);
+      history.pushState(null, "", location.href);
+      window.addEventListener("popstate", function () {
+        history.pushState(null, "", location.href);
+      });
+    })();
+  </script>
+
   <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
     <div style="font-size: 1em; color: #9e0303;">Operador:
       {{ usuario_nome }}
@@ -88,7 +99,7 @@
   <div id="reader"></div>
 
   <div class="manual">
-    <input type="text" id="endereco_coletado" placeholder="Digite o endereço" />
+    <input type="text" id="endereco_coletado" style="text-transform: uppercase;" />
     <button id="botao_confirmar">Confirmar</button>
   </div>
 
@@ -107,16 +118,23 @@
       formulario.method = "post";
       formulario.action = "/contagem";
 
+
       const camposFormulario = {
         ordem_separacao: "{{ ordem_separacao }}",
         item: "{{ item }}",
         codigo_produto: "{{ codigo_produto }}",
+        descricao_produto: "{{ descricao_produto }}",
         saldo_separar: "{{ saldo_separar }}",
         almoxarifado: "{{ almoxarifado }}",
         pedido: "{{ pedido }}",
         sequencia_pedido: "{{ sequencia_pedido }}",
         endereco_coletado: enderecoColetado
       };
+
+      const agrupador = "{{ agrupador | default('') }}".trim();
+      if (agrupador && agrupador !== "None") {
+        camposFormulario.agrupador = agrupador;
+      }
 
       for (const chave in camposFormulario) {
         const input = document.createElement("input");
@@ -165,6 +183,10 @@
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("botao_confirmar").addEventListener("click", confirmarEndereco)
     });
+    document.getElementById("endereco_coletado").addEventListener("input", function (e) {
+      this.value = this.value.toUpperCase();
+    });
+
   </script>
 </body>
 

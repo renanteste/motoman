@@ -48,6 +48,16 @@
 </head>
 
 <body>
+    <script>
+        // trava o botão Voltar antes de tudo
+        (function () {
+            history.replaceState(null, "", location.href);
+            history.pushState(null, "", location.href);
+            window.addEventListener("popstate", function () {
+                history.pushState(null, "", location.href);
+            });
+        })();
+    </script>
     <h2>Acesso ao Sistema</h2>
 
     {% if erro %}

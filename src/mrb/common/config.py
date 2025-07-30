@@ -64,4 +64,4 @@ class Environment:
     # Chave compartilhada com a aplicação do coletor utilizada na autenticação
     CHAVE_COLETOR = "Q8%pA2!kZzL7$wMEr3#vNgTb@CHAVE_COLETOR"
     # URL do serviço REST do Protheus
-    URL_REST_PROTHEUS = "http://172.22.8.25:3001/rest"
+    URL_REST_PROTHEUS = "http://172.22.8.25:4003/rest"

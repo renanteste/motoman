@@ -1,6 +1,5 @@
 from datetime import date, datetime
 from decimal import Decimal
-import time
 from typing import List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Header, Path, Response, status
 from sqlalchemy import (
@@ -43,6 +42,8 @@ from src.mrb.coletores.models.model_itens_ordem_separacao import (
 )
 from src.mrb.coletores.models.model_registro_separacao import registro_separacao_cb9
 from src.mrb.comercial.models.model_clientes import clientes_sa1
+from src.mrb.common.models.model_produtos_sb1 import produtos_sb1
+from src.mrb.common.models.model_insumos_projeto_afa import insumos_projetos_afa
 
 ordens_separacao_router = APIRouter()
 
@@ -86,6 +87,7 @@ class OrdensSeparacao:
                 cb7.c.CB7_NOTA.label("nota_fiscal"),
                 cb7.c.CB7_XQTDIM.label("quantidade_impressoes"),
                 cb7.c.CB7_PRIORI.label("prioridade"),
+                cb7.c.CB7_ORIGEM.label("origem"),
             )
             .select_from(
                 cb7.join(
@@ -370,6 +372,8 @@ class OrdensSeparacao:
         itens_ordem_separacao: List[ItemOrdemSeparacao] = []
         cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
         z0o = aliased(posicoes_z0o, name="z0o")
+        sb1 = aliased(produtos_sb1, name="sb1")
+        afa = aliased(insumos_projetos_afa, name="afa")
         if not item_anterior.strip() == "":
             item_posicao = recupera_posicao_item()
 
@@ -393,6 +397,7 @@ class OrdensSeparacao:
                 cb8.c.CB8_ITEM.label("item"),
                 cb8.c.CB8_PEDIDO.label("pedido"),
                 cb8.c.CB8_PROD.label("codigo_produto"),
+                func.trim(sb1.c.B1_DESC).label("descricao_produto"),
                 cb8.c.CB8_LOCAL.label("almoxarifado"),
                 func.min(
                     func.coalesce(
@@ -405,15 +410,37 @@ class OrdensSeparacao:
                 cast(cb8.c.CB8_QTDORI, Numeric(10, 2)).label("quantidade_original"),
                 cast(cb8.c.CB8_SALDOS, Numeric(10, 2)).label("saldo_separar"),
                 cb8.c.CB8_SEQUEN.label("sequencia_pedido"),
+                afa.c.AFA_XAGRUP.label("agrupador"),
             )
             .select_from(
-                cb8.outerjoin(
+                cb8.join(
+                    sb1,
+                    and_(
+                        sb1.c.D_E_L_E_T_ == " ",
+                        sb1.c.B1_FILIAL == "01",
+                        sb1.c.B1_COD == cb8.c.CB8_PROD,
+                    ),
+                )
+                .outerjoin(
                     z0o,
                     and_(
                         z0o.c.D_E_L_E_T_ == " ",
                         z0o.c.Z0O_FILIAL == "01",
                         z0o.c.Z0O_COD == cb8.c.CB8_PROD,
                         z0o.c.Z0O_LOCAL == cb8.c.CB8_LOCAL,
+                    ),
+                )
+                .outerjoin(
+                    afa,
+                    and_(
+                        afa.c.D_E_L_E_T_ == " ",
+                        afa.c.AFA_FILIAL == "01",
+                        afa.c.AFA_PROJET == cb8.c.CB8_XPROJE,
+                        afa.c.AFA_REVISA >= " ",
+                        afa.c.AFA_TAREFA == cb8.c.CB8_XTAREF,
+                        afa.c.AFA_ITEM == cb8.c.CB8_XITTAR,
+                        afa.c.AFA_PRODUT == cb8.c.CB8_PROD,
+                        afa.c.AFA_XPROD == cb8.c.CB8_XPROD,
                     ),
                 )
             )
@@ -423,13 +450,13 @@ class OrdensSeparacao:
                 cb8.c.CB8_PEDIDO,
                 cb8.c.CB8_SEQUEN,
                 cb8.c.CB8_PROD,
+                sb1.c.B1_DESC,
                 cb8.c.CB8_LOCAL,
                 cb8.c.CB8_QTDORI,
                 cb8.c.CB8_SALDOS,
+                afa.c.AFA_XAGRUP,
             )
             .subquery("itens")
-            # .order_by(func.min(z0o.c.Z0O_POSICA), cb8.c.CB8_ITEM)
-            # .limit(2)
         )
         # Aninhamento dos itens para ordenar o resultado por endereço e item
         # e retornar o próximo endereço e item com referência ao endereço e item anteriores

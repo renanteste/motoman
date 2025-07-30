@@ -36,6 +36,28 @@ class OrdemSeparacao(BaseModel):
         examples=["0", "5", "9"],
         description="Prioridade como string entre '0' e '9'",
     )
+    origem: str = Field(
+        ...,
+        max_length=1,
+        min_length=1,
+        examples=[
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+        ],
+        description="Origem da ordem de separação:\n"
+        "1 = Pedido\n"
+        "2 = Nota Fiscal\n"
+        "3 = Produção\n"
+        "4 = Estrutura\n"
+        "5 = Conteiner\n"
+        "6 = Fora estrutura\n"
+        "7 = Solicitação ao armazém",
+    )
     pedido_vendas: Optional[str] = Field(
         None,
         max_length=6,
@@ -85,6 +107,13 @@ class ItemOrdemSeparacao(BaseModel):
         examples=["158105-1"],
         description="Código do material que será separado",
     )
+    descricao_produto: str = Field(
+        ...,
+        max_length=50,
+        min_length=1,
+        examples=["SUPORTE VALVULA"],
+        description="Descrição do material",
+    )
     almoxarifado: str = Field(
         ...,
         max_length=2,
@@ -111,6 +140,12 @@ class ItemOrdemSeparacao(BaseModel):
         max_length=2,
         examples=["01"],
         description="Sequencial de liberação do pedido de vendas",
+    )
+    agrupador: Optional[str] = Field(
+        None,
+        max_length=20,
+        examples=["11002E", "INFOTP1PCP01"],
+        description="Código agrupador do material na estrutura do projeto.",
     )
     enderecos_alternativos: Optional[List[str]] = Field(
         None,

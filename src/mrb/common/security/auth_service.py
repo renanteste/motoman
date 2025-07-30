@@ -148,6 +148,7 @@ class AuthService:
         query = (
             Select(
                 szk.c.ZK_ID,
+                szk.c.ZK_EMAIL,
                 szk.c.ZK_NOME,
                 szk.c.ZK_MSBLQL,
                 szk.c.ZK_MSBLQD,
@@ -196,6 +197,7 @@ class AuthService:
         )
         dados_usuario = self.db.execute(query).fetchone()
         if dados_usuario:
+            id_usuario = id_usuario if id_usuario else dados_usuario.ZK_EMAIL.strip()
             self.dados_usuario.id_usuario = dados_usuario.ZK_ID
             self.dados_usuario.nome_usuario = dados_usuario.ZK_NOME.strip()
             self.dados_usuario.email_usuario = conta_usuario

@@ -1,7 +1,7 @@
 import base64
 from decimal import Decimal, InvalidOperation
-from typing import List
-from fastapi import FastAPI, Form, HTTPException, Path, Request, status
+from typing import List, Optional
+from fastapi import FastAPI, Form, HTTPException, Path, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from urllib.parse import quote
@@ -43,7 +43,9 @@ def retorno_separacao(
         "request": request,
         "ordem_separacao": ordem_separacao,
         "item": retorno_separacao["item"],
+        "agrupador": retorno_separacao["agrupador"],
         "codigo_produto": retorno_separacao["codigo_produto"],
+        "descricao_produto": retorno_separacao["descricao_produto"],
         "saldo_separar": saldo_separar,
         "almoxarifado": retorno_separacao["almoxarifado"],
         "pedido": retorno_separacao.get("pedido", ""),
@@ -128,6 +130,9 @@ async def lista_ordens_separacao(request: Request):
                 ordem["legenda_prioridade"] = LEGENDA_PRIORIDADE[
                     int(ordem.get("prioridade", "0"))
                 ]
+                ordem["origem"] = (
+                    "Compra Dedicada" if ordem["origem"] == "5" else "Estoque"
+                )
 
             return prepara_response.retorna_response(
                 templates.TemplateResponse(
@@ -215,7 +220,9 @@ async def inicia_separacao_item(
                     "request": request,
                     "ordem_separacao": ordem_separacao,
                     "item": itens[0]["item"],
+                    "agrupador": itens[0]["agrupador"],
                     "codigo_produto": itens[0]["codigo_produto"],
+                    "descricao_produto": itens[0]["descricao_produto"],
                     "posicao": itens[0]["posicao"],
                     "saldo_separar": itens[0]["saldo_separar"],
                     "almoxarifado": itens[0]["almoxarifado"],
@@ -359,11 +366,13 @@ async def grava_separacao(
     ordem_separacao: str = Form(...),
     item: str = Form(...),
     codigo_produto: str = Form(...),
+    descricao_produto: str = Form(...),
     quantidade_separada: str = Form(...),
     almoxarifado: str = Form(...),
     pedido: str = Form(...),
     sequencia_pedido: str = Form(...),
     endereco_coletado: str = Form(...),
+    agrupador: Optional[str] = Form(None),
 ):
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
@@ -383,7 +392,9 @@ async def grava_separacao(
             dados={
                 "ordem_separacao": ordem_separacao,
                 "item": item,
+                "agrupador": agrupador,
                 "codigo_produto": codigo_produto,
+                "descricao_produto": descricao_produto,
                 "quantidade_separada": quantidade_separada_float,
                 "almoxarifado": almoxarifado,
                 "pedido": pedido,
@@ -399,7 +410,15 @@ async def grava_separacao(
         elif response.status_code == status.HTTP_204_NO_CONTENT:
             # Ordem de separação gravada sem retornar novos itens, é ordem finalizada
             return prepara_response.retorna_response(
-                RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
+                templates.TemplateResponse(
+                    "ordens.html",
+                    {
+                        "request": request,
+                        "erro": f"Ordem de separação {ordem_separacao} finalizada!",
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                    status_code=status.HTTP_302_FOUND,
+                )
             )
 
         elif not response.status_code == status.HTTP_200_OK:
@@ -410,7 +429,9 @@ async def grava_separacao(
                         "request": request,
                         "ordem_separacao": ordem_separacao,
                         "item": item,
+                        "agrupador": agrupador,
                         "codigo_produto": codigo_produto,
+                        "descricao_produto": descricao_produto,
                         "saldo_separar": quantidade_separada_float,
                         "almoxarifado": almoxarifado,
                         "pedido": pedido,
@@ -451,6 +472,7 @@ async def pular_item(
     pedido: str = Form(...),
     sequencia_pedido: str = Form(...),
     endereco_coletado: str = Form(...),
+    agrupador: Optional[str] = Form(None),
 ):
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
@@ -486,6 +508,7 @@ async def pular_item(
                         "request": request,
                         "ordem_separacao": ordem_separacao,
                         "item": item,
+                        "agrupador": agrupador,
                         "codigo_produto": codigo_produto,
                         "saldo_separar": quantidade_separada_float,
                         "almoxarifado": almoxarifado,
@@ -519,17 +542,19 @@ async def pular_item(
         )
 
 
-@app.post("/contagem", include_in_schema=False)
-async def contagem(
+@app.get("/contagem_view", include_in_schema=False)
+async def contagem_view(
     request: Request,
-    ordem_separacao: str = Form(...),
-    item: str = Form(...),
-    codigo_produto: str = Form(...),
-    saldo_separar: str = Form(...),
-    almoxarifado: str = Form(...),
-    pedido: str = Form(...),
-    sequencia_pedido: str = Form(...),
-    endereco_coletado: str = Form(...),
+    ordem_separacao: str = Query(...),
+    item: str = Query(...),
+    codigo_produto: str = Query(...),
+    descricao_produto: str = Query(...),
+    saldo_separar: str = Query(...),
+    almoxarifado: str = Query(...),
+    pedido: str = Query(...),
+    sequencia_pedido: str = Query(...),
+    endereco_coletado: str = Query(...),
+    agrupador: Optional[str] = Query(None),
 ):
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
@@ -544,7 +569,9 @@ async def contagem(
                 "request": request,
                 "ordem_separacao": ordem_separacao,
                 "item": item,
+                "agrupador": agrupador,
                 "codigo_produto": codigo_produto,
+                "descricao_produto": descricao_produto,
                 "saldo_separar": saldo_float,
                 "almoxarifado": almoxarifado,
                 "pedido": pedido,
@@ -558,6 +585,50 @@ async def contagem(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Falha montando contagem: {e}",
+        )
+
+
+@app.post("/contagem", include_in_schema=False)
+async def contagem(
+    request: Request,
+    ordem_separacao: str = Form(...),
+    item: str = Form(...),
+    codigo_produto: str = Form(...),
+    descricao_produto: str = Form(...),
+    saldo_separar: str = Form(...),
+    almoxarifado: str = Form(...),
+    pedido: str = Form(...),
+    sequencia_pedido: str = Form(...),
+    endereco_coletado: str = Form(...),
+    agrupador: Optional[str] = Form(None),
+):
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
+
+    try:
+        url = (
+            f"/contagem_view"
+            + f"?ordem_separacao={quote(ordem_separacao)}"
+            + f"&item={quote(item)}"
+            + f"&codigo_produto={quote(codigo_produto)}"
+            + f"&descricao_produto={quote(descricao_produto)}"
+            + f"&saldo_separar={quote(saldo_separar)}"
+            + f"&almoxarifado={quote(almoxarifado)}"
+            + f"&pedido={quote(pedido)}"
+            + f"&sequencia_pedido={quote(sequencia_pedido)}"
+            + f"&endereco_coletado={quote(endereco_coletado)}"
+            + f"&agrupador={quote(agrupador)}"
+        )
+
+        return prepara_response.retorna_response(
+            RedirectResponse(url=url, status_code=status.HTTP_303_SEE_OTHER)
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Falha redirecionando contagem: {e}",
         )
 
 

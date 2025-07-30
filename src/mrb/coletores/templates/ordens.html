@@ -90,6 +90,17 @@
 </head>
 
 <body>
+  <script>
+    // trava o botão Voltar antes de tudo
+    (function () {
+      history.replaceState(null, "", location.href);
+      history.pushState(null, "", location.href);
+      window.addEventListener("popstate", function () {
+        history.pushState(null, "", location.href);
+      });
+    })();
+  </script>
+
   <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
     <div style="font-size: 1em; color: #9e0303;">Operador:
       {{ usuario_nome }}
@@ -136,16 +147,18 @@
     </div>
     <div class="linha"><strong>Pedido:</strong> {{ ordem.pedido_vendas or "-" }}</div>
     <div class="linha"><strong>Cliente:</strong> {{ ordem.nome_cliente or "-" }}</div>
-    <div class="linha"><strong>Projeto:</strong> {{ ordem.projeto }}</div>
-    <div class="linha"><strong>Célula:</strong> {{ ordem.celula }}</div>
+    <div class="linha"><strong>Prj/Célula:</strong> {{ ordem.projeto }} / {{ ordem.celula }}</div>
+    <div class="linha"><strong>Origem:</strong> {{ ordem.origem }}</div>
     <div class="linha"><strong>Contêiner:</strong> {{ ordem.conteiner or "-" }}</div>
     <div class="linha"><strong>Status:</strong> {{ ordem.label.split(":", 1)[1] }}</div>
     <div class="status-bar status-{{ ordem.label.split(':', 1)[0] }}"></div>
   </div>
   {% else %}
+  {% if not erro %}
   <div style="text-align: center; font-size: 1.1em; color: #666; margin-top: 2rem;">
     Sem ordens na fila.
   </div>
+  {% endif %}
   {% endfor %}
 
   <script>

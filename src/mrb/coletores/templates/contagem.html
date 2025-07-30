@@ -57,6 +57,7 @@
       padding: 10px;
       font-size: 1.1em;
       box-sizing: border-box;
+      border: 1px solid #000;
       width: 100px;
     }
 
@@ -64,6 +65,7 @@
       padding: 10px;
       font-size: 1.1em;
       box-sizing: border-box;
+      border: 1px solid #000;
       width: 240px;
     }
 
@@ -106,6 +108,17 @@
 </head>
 
 <body>
+  <script>
+    // trava o botão Voltar antes de tudo
+    (function () {
+      history.replaceState(null, "", location.href);
+      history.pushState(null, "", location.href);
+      window.addEventListener("popstate", function () {
+        history.pushState(null, "", location.href);
+      });
+    })();
+  </script>
+
   {% if erro %}
   <div
     style="color: red; background-color: #ffeeee; padding: 10px; text-align: center; font-weight: bold; border: 1px solid red; margin-bottom: 1rem;">
@@ -114,11 +127,20 @@
   {% endif %}
 
   <div style="display: inline; justify-content: space-between; align-items: center; padding: 10px;">
-    <div style="font-size: 1em; color: #9e0303; margin-bottom: 1rem;">Operador:
-      {{ usuario_nome }}
+    <div
+      style="display: flex; justify-content: space-between; align-items: center; font-size: 1em; margin-bottom: 1rem;">
+      <div style="color: #9e0303;">Operador: {{ usuario_nome }}</div>
+      <div style="color: #000;">OS: {{ ordem_separacao }}</div>
+    </div>
+    <div class="info">
+      <strong>Item:</strong> {{ item }} &nbsp;&nbsp;&nbsp;
+      <strong>Código:</strong> {{ codigo_produto }}
     </div>
 
-    <div class="info"><strong>Código:</strong> {{ codigo_produto }}</div>
+    <div class="info" style="font-size: 0.8em;">{{ descricao_produto }}</div>
+    {% if agrupador %}
+    <div class="info" style="font-size: 0.8em;">Agrupador: {{ agrupador }}</div>
+    {% endif %}
     <div class="info"><strong>Separar:</strong> {{ saldo_separar }}</div>
 
     <form id="formulario" autocomplete="off">
@@ -130,7 +152,8 @@
       </div>
 
       <div class="linha-codigo">
-        <input type="text" id="campo_codigo" name="codigo_do_produto" placeholder="Código" />
+        <input type="text" id="campo_codigo" name="codigo_do_produto" placeholder="Código"
+          style="text-transform: uppercase;" />
         <button type="button" class="btn-separar" onclick="separarItem()">Separar</button>
       </div>
     </form>
@@ -167,6 +190,7 @@
           ordem_separacao: "{{ ordem_separacao }}",
           item: "{{ item }}",
           codigo_produto: codigoItem,
+          descricao_produto: "{{ descricao_produto }}",
           quantidade_separada: quantidade,
           almoxarifado: "{{ almoxarifado }}",
           pedido: "{{ pedido }}",
@@ -198,6 +222,7 @@
             ordem_separacao: "{{ ordem_separacao }}",
             item: "{{ item }}",
             codigo_produto: "{{ codigo_produto }}",
+            descricao_produto: "{{ descricao_produto }}",
             quantidade_separada: "{{ saldo_separar }}",
             almoxarifado: "{{ almoxarifado }}",
             pedido: "{{ pedido }}",
@@ -217,6 +242,10 @@
           formularioPularItemSeparacao.submit()
         }
       }
+
+      document.getElementById("campo_codigo").addEventListener("input", function () {
+        this.value = this.value.toUpperCase();
+      });
 
       const html5QrCode = new Html5Qrcode("reader");
 
