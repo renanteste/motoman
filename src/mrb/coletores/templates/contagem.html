@@ -253,11 +253,13 @@
         { facingMode: "environment" },
         { fps: 30, qrbox: 250 },
         (decodedText, decodedResult) => {
-          if (decodedText.trim() === "{{ codigo_produto }}".trim()) {
-            document.getElementById("campo_codigo").value = decodedText;
+          const codigo_lido = decodedText.includes("|") ? decodedText.split("|")[0] : decodedText;
+          if (codigo_lido.trim() === "{{ codigo_produto }}".trim()) {
+            html5QrCode.stop();
+            document.getElementById("campo_codigo").value = codigo_lido;
             separarItem();
           } else {
-            alert(`Código ${decodedText} inválido!`);
+            alert(`Código ${codigo_lido} inválido!`);
           }
         },
         error => {
