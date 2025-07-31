@@ -1,15 +1,22 @@
+from enum import Enum
 import logging
-from typing import Literal
+from typing import Literal, Optional
 
 from fastapi import HTTPException
 
 
+class NivelLog(Enum):
+    ERROR = 1
+    WARNING = 2
+    INFO = 3
+
+
 def log_httpexception_raise(
     status_code: int,
-    mensagem,
-    excecao=None,
+    mensagem: str,
+    excecao: Optional[BaseException] = None,
     exc_info: bool = False,
-    nivel_log: Literal[1, 2, 3] = 1,
+    nivel_log: NivelLog = NivelLog.ERROR,
 ):
     """
     Função registra a exceção no log e faz o raise com HTTPException.

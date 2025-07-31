@@ -22,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.mrb.common.lib.log_httpexception_raise import NivelLog, log_httpexception_raise
 from src.mrb.common.lib.prepara_dados_protheus import prepara_dados_protheus
 from src.mrb.common.config import Environment
 from src.mrb.coletores.schemas.schema_ordem_separacao import (
@@ -51,11 +52,18 @@ OPERADOR_PADRAO = "000000"
 
 
 class OrdensSeparacao:
+    """
+    Classe para gravação e recuperação de dados do processo de separação de materiais.
+    """
+
     def __init__(self, db: Session) -> None:
         self.db = db
         self.codigo_operador: str = None
 
     def lista_ordens_separacao(self, usuario_operador: str):
+        """
+        Recupera a lista de ordens de separação determinadas para o operador do parâmetro ou do operador padrão '000000'.
+        """
         cb7 = aliased(ordens_separacao_cb7, name="cb7")
         sa1 = aliased(clientes_sa1, name="sa1")
 
@@ -129,16 +137,20 @@ class OrdensSeparacao:
                 ordens_separacao=ordens_separacao,
             )
 
-        except HTTPException:
-            raise
-
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro ao selecionar as ordens de separação para o operador: {e}",
+                mensagem="Erro ao selecionar as ordens de separação para o operador",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
     def situacao_ordem_separacao(self, dados_separacao: dict) -> str:
+        """
+        Método aplica conjunto específico de regras para retornar a situação 'legenda' da ordem de separação
+        de acordo com os dados recuperados do sistema.
+        """
         regras_legendas = [
             (lambda dados: dados.get("divergencia") == "1", "1:Divergência"),
             (lambda dados: dados.get("em_pausa") == "1", "2:Em pausa"),
@@ -179,6 +191,9 @@ class OrdensSeparacao:
         return "0:Indefinida"
 
     def query_usuario(self, usuario_operador: str) -> Select[Tuple]:
+        """
+        Montagem da query para seleção do usuário operador.
+        """
         cb1 = aliased(operadores_cb1, name="cb1")
         szk = aliased(usuarios_szk, name="szk")
         ae8 = aliased(recursos_ae8, name="ae8")
@@ -221,14 +236,20 @@ class OrdensSeparacao:
             codigo_operador = codigo_operador if codigo_operador else OPERADOR_PADRAO
 
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro ao buscar código do operador: {e}",
+                mensagem="Erro ao buscar código do operador",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         return codigo_operador
 
     def atualiza_operador(self, ordem_separacao: str, usuario_operador: str):
+        """
+        Atualiza o código do operador na ordem de separação.
+        """
         self.codigo_operador = self.recupera_operador_usuario(usuario_operador)
 
         cb7 = aliased(ordens_separacao_cb7, name="cb7")
@@ -249,9 +270,12 @@ class OrdensSeparacao:
 
         except SQLAlchemyError as e:
             self.db.rollback()
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro ao buscar a ordem de separação: {e}",
+                mensagem="Falha ao recuperar código do operador na Ordem de Separação",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         operador_atual = (
@@ -267,9 +291,10 @@ class OrdensSeparacao:
             and not operador_atual == self.codigo_operador
         ):
             self.db.rollback()
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"A ordem de separação foi capturada pelo operador {operador_atual}",
+                mensagem=f"A ordem de separação foi capturada pelo operador {operador_atual}",
+                nivel_log=NivelLog.WARNING,
             )
 
         # Se for fila de separação ou do próprio operador atualiza o operador e inicializa a separação
@@ -289,9 +314,12 @@ class OrdensSeparacao:
 
             except SQLAlchemyError as e:
                 self.db.rollback()
-                raise HTTPException(
+                log_httpexception_raise(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Falha ao iniciar a separação {e}",
+                    mensagem="Falha ao atualizar operador na Ordem de Separação",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
                 )
 
             # Pausa as demais ordens de separação que estiverem em andamento para o operador
@@ -315,9 +343,12 @@ class OrdensSeparacao:
 
             except SQLAlchemyError as e:
                 self.db.rollback()
-                raise HTTPException(
+                log_httpexception_raise(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Falha ao pausar separações do operador {e}",
+                    mensagem="Falha ao pausar separações do operador",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
                 )
 
         self.db.rollback()
@@ -325,6 +356,12 @@ class OrdensSeparacao:
     def recupera_itens(
         self, ordem_separacao: str, item_anterior: str = " ", item: str = None
     ) -> List[ItemOrdemSeparacao]:
+        """
+        Recupera os itens da ordem de separação.\n
+        Se o argumento 'item' for informado, será retornado apenas o item.\n
+        Caso 'item_anterior' seja informado, irá retornar o próximo item na ordem POSICAO + ITEM.
+        """
+
         def recupera_posicao_item() -> str:
             query_item = (
                 select(
@@ -363,9 +400,12 @@ class OrdensSeparacao:
                 return posicao_item + item_anterior if posicao_item else " "
 
             except SQLAlchemyError as e:
-                raise HTTPException(
+                log_httpexception_raise(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Falha ao recuperar posição do item da separação {e}",
+                    mensagem="Falha ao recuperar posição do item da separação",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
                 )
 
         item_anterior = item_anterior if item_anterior else " "
@@ -489,14 +529,20 @@ class OrdensSeparacao:
                 )
 
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Falha ao selecionar os itens da ordem de separação {e}",
+                mensagem="Falha ao selecionar os itens da ordem de separação",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         return itens_ordem_separacao
 
     def pausar_separacao(self, ordem_separacao: str) -> dict:
+        """
+        Atualiza a separação para o status de pausa.
+        """
         cb7 = ordens_separacao_cb7
         query = (
             update(cb7)
@@ -514,9 +560,12 @@ class OrdensSeparacao:
             self.db.commit()
 
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Falha ao pausar separação: {e}",
+                mensagem="Falha ao pausar separação",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         return {"resultado": "sucesso"}
@@ -526,6 +575,9 @@ class OrdensSeparacao:
         usuario_operador: str,
         dados_contagem: RegistraSeparacao,
     ) -> Union[ItemOrdemSeparacao, Response]:
+        """
+        Grava a contagem do item na ordem de separação.
+        """
         self.codigo_operador = self.recupera_operador_usuario(usuario_operador)
 
         cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
@@ -574,9 +626,12 @@ class OrdensSeparacao:
             resultado = self.db.execute(query).fetchone()
 
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Falha recuperando saldo da separação no registro da contagem {e}",
+                mensagem="Falha recuperando saldo da separação no registro da contagem",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         if resultado:
@@ -636,18 +691,22 @@ class OrdensSeparacao:
 
             except SQLAlchemyError as e:
                 self.db.rollback()
-                raise HTTPException(
+                log_httpexception_raise(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Falha gravando a contagem {e}",
+                    mensagem="Falha gravando a contagem",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
                 )
 
         else:
             query_plana = query.compile(
                 dialect=self.db.bind.dialect, compile_kwargs={"literal_binds": True}
             )
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Item da separação não localizado com a query {query_plana}",
+                mensagem=f"Item da separação não localizado com a query {query_plana}",
+                nivel_log=NivelLog.ERROR,
             )
 
         # Se chegou até aqui, retorna o próximo item da separação
@@ -663,6 +722,9 @@ class OrdensSeparacao:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     def atualiza_status_separacao(self, ordem_separacao: str, usuario_operador: str):
+        """
+        Verifica se a ordem de separação está totalmente separada e atualiza seu status para concluída.
+        """
         itens_com_saldo: int = None
         cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
         query = select(func.count(cb8.c.CB8_ORDSEP).label("CNT")).where(
@@ -678,9 +740,12 @@ class OrdensSeparacao:
             itens_com_saldo = self.db.execute(query).scalar()
 
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Falha recuperando itens com saldo {e}",
+                mensagem="Falha recuperando itens com saldo",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         if itens_com_saldo is not None and itens_com_saldo == 0:
@@ -717,15 +782,21 @@ class OrdensSeparacao:
 
             except SQLAlchemyError as e:
                 self.db.rollback()
-                raise HTTPException(
+                log_httpexception_raise(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Falha ao atualizar o status da separação {e}",
+                    mensagem="Falha ao atualizar o status da separação",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
                 )
 
 
 def recupera_posicoes(
     db: Session, codigo_produto: str, almoxarifado: str, posicao_atual: str
 ) -> List[str]:
+    """
+    Recupera outras possíveis posições de armazenamento do produto, diferentes da posição atual.
+    """
     posicoes: List = None
     z0o = aliased(posicoes_z0o, name="z0o")
     query = (
@@ -745,9 +816,12 @@ def recupera_posicoes(
         posicoes = [row[0] for row in db.execute(query).fetchall()]
 
     except SQLAlchemyError as e:
-        raise HTTPException(
+        log_httpexception_raise(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Falha na recuperação de posições complementares {e}",
+            mensagem="Falha na recuperação de posições complementares",
+            exc_info=True,
+            nivel_log=NivelLog.ERROR,
+            excecao=e,
         )
 
     return posicoes
@@ -771,8 +845,10 @@ def lista_ordens_separacao(
         return ordens_separacao.lista_ordens_separacao(payload.get("sub"))
 
     else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
         )
 
 
@@ -788,6 +864,9 @@ def separar_ordem(
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
 ) -> List[ItemOrdemSeparacao]:
+    """
+    Endpoint para iniciar o processo de separação a partir da fila.
+    """
     return separar(
         ordem_separacao=ordem_separacao,
         x_cliente_token=x_cliente_token,
@@ -809,6 +888,9 @@ def separar_ordem_item(
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
 ) -> List[ItemOrdemSeparacao]:
+    """
+    Endpoint para dar continuidade ao processo de separação a partir de um item.
+    """
     return separar(
         ordem_separacao=ordem_separacao,
         item=item,
@@ -831,6 +913,9 @@ def pular_item(
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
 ) -> List[ItemOrdemSeparacao]:
+    """
+    Endpoint para pular o item da separação.
+    """
     return separar(
         ordem_separacao=ordem_separacao,
         item_anterior=item_anterior,
@@ -848,9 +933,16 @@ def separar(
     item: Optional[str] = None,
     item_anterior: Optional[str] = None,
 ) -> Union[List[ItemOrdemSeparacao], Response]:
+    """
+    Função para retornar os dados do item para separação.\n
+    Se 'item_anterior' for infomado, busca os dados do próximo item.\n
+    Se 'item' for informado, retorna os dados do próprio item informado.
+    """
     if not valida_chave_coletor(x_cliente_token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
         )
 
     ordens_separacao = OrdensSeparacao(db=db)
@@ -881,9 +973,14 @@ def pausar_separacao(
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
 ) -> dict:
+    """
+    Enpoint para pausar a Ordem de Separação.
+    """
     if not valida_chave_coletor(x_cliente_token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
         )
 
     ordens_separacao = OrdensSeparacao(db=db)
@@ -901,9 +998,14 @@ def registra_separacao(
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
 ) -> ItemOrdemSeparacao:
+    """
+    Endpoint para gravar os dados da separação coletados.
+    """
     if not valida_chave_coletor(x_cliente_token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
         )
 
     ordens_separacao = OrdensSeparacao(db=db)
@@ -914,4 +1016,7 @@ def registra_separacao(
 
 
 def valida_chave_coletor(chave_cliente) -> bool:
+    """
+    Valida se a chave do cliente que identifica o coletor está coerente com a definida no ambiente.
+    """
     return chave_cliente == Environment.CHAVE_COLETOR

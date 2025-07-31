@@ -301,8 +301,9 @@ class AuthService:
 
         else:
             raise HTTPException(
-                status_code=response_auth_erp.status_code,
-                detail="Não autorizado no ERP",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"""Não autorizado no ERP: ({response_auth_erp.status_code}) 
+                {response_auth_erp.json().get('message', "Erro interno no servidor do ERP")}""",
             )
 
         return usuario_erp

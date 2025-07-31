@@ -1,19 +1,29 @@
 import base64
-from decimal import Decimal, InvalidOperation
+from decimal import InvalidOperation
 from typing import List, Optional
 from fastapi import FastAPI, Form, HTTPException, Path, Query, Request, status
+from fastapi.middleware import Middleware
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 from urllib.parse import quote
 import requests
 import uvicorn
 
+from src.mrb.common.lib.log_httpexception_raise import NivelLog, log_httpexception_raise
+from src.mrb.common.lib.handlers_excecoes import registrar_handlers_excecoes
+from src.mrb.common.lib.log_middleware import log_requests
+from src.mrb.common.lib.configura_log import configura_log
 from src.mrb.coletores.api.prepara_response import PreparaResponse
 from src.mrb.common.lib.calcula_max_age import calcula_max_age
 from src.mrb.common.security.auth_service import valida_token
 from src.mrb.common.config import ApiConfiguration, Environment
 
-app = FastAPI()
+configura_log("coletores_frontend")
+
+app = FastAPI(middleware=[Middleware(BaseHTTPMiddleware, dispatch=log_requests)])
+registrar_handlers_excecoes(app)
+
 templates = Jinja2Templates(directory="src\\mrb\\coletores\\templates")
 
 LEGENDA_PRIORIDADE = [
@@ -37,6 +47,9 @@ def retorno_separacao(
     endereco_coletado: str,
     ordem_separacao: str,
 ):
+    """
+    Monta o retorno para o próximo item após gravar uma separação com sucesso ou após pular um item
+    """
     saldo_separar = quantidade_float(retorno_separacao["saldo_separar"])
     enderecos_alternativos = retorno_separacao.get("enderecos_alternativos") or []
     parametros = {
@@ -74,13 +87,19 @@ def retorno_separacao(
 
 
 def quantidade_float(quantidade_string: str) -> float:
+    """
+    Converte a quantidade string para float, com tratamento de falha
+    """
     try:
         quantidade_float = float(quantidade_string)
 
-    except InvalidOperation as e:
-        raise HTTPException(
+    except (InvalidOperation, ValueError) as e:
+        log_httpexception_raise(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Valor inválido para conversão float: {e}",
+            mensagem="Valor inválido para conversão float",
+            exc_info=True,
+            nivel_log=NivelLog.INFO,
+            excecao=e,
         )
 
     return quantidade_float
@@ -112,11 +131,15 @@ def tela_login(request: Request, mensagem: str = None):
 
 @app.get("/ordens", include_in_schema=False)
 async def lista_ordens_separacao(request: Request):
+    """
+    Endpoint GET que trata os dados para exibição da lista de ordens de separação na fila
+    """
     try:
         prepara_response = PreparaResponse(request=request)
         if not prepara_response.valida_tokens():
             return await logout(mensagem="Token de acesso inválido / expirado!")
 
+        # Faz a requisição da lista de ordens de separação ao endpoint do backend
         response = prepara_response.exec_request(
             url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/ordens_separacao",
             metodo="get",
@@ -127,9 +150,11 @@ async def lista_ordens_separacao(request: Request):
             ordens = response.json()
 
             for ordem in ordens["ordens_separacao"]:
+                # Faz a troca do conteúdo para a legenda de prioridade do card da fila
                 ordem["legenda_prioridade"] = LEGENDA_PRIORIDADE[
                     int(ordem.get("prioridade", "0"))
                 ]
+                # Trata o conteúdo do campo origem da ordem de separação
                 ordem["origem"] = (
                     "Compra Dedicada" if ordem["origem"] == "5" else "Estoque"
                 )
@@ -176,6 +201,9 @@ async def lista_ordens_separacao(request: Request):
 
 @app.get("/inicia_separacao/{ordem_separacao}", include_in_schema=False)
 async def inicia_separacao(request: Request, ordem_separacao: str = Path(...)):
+    """
+    Endpoint invocado para iniciar a separação a partir da fila de separação
+    """
     return await inicia_separacao_item(
         request=request, ordem_separacao=ordem_separacao, item=None
     )
@@ -185,6 +213,10 @@ async def inicia_separacao(request: Request, ordem_separacao: str = Path(...)):
 async def inicia_separacao_item(
     request: Request, ordem_separacao: str = Path(...), item: str = Path(...)
 ):
+    """
+    Endpoint para recuperar os dados do item específico da ordem de separação.\n
+    A função também pode ser chamada retornando o próximo item com saldo, sem ser item específico.
+    """
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
         return await logout(mensagem="Token de acesso inválido / expirado!")
@@ -193,6 +225,7 @@ async def inicia_separacao_item(
         # Recupera o item da ordem de separação
         url = f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/separar/{ordem_separacao}"
         if item:
+            # Monta a url para retornar um item específico
             url += f"/{item}"
 
         response = prepara_response.exec_request(
@@ -204,6 +237,7 @@ async def inicia_separacao_item(
         if response.status_code == status.HTTP_200_OK:
             itens: List[dict] = response.json()
             if not itens:
+                # Retorna mensagem quando não foram localizados itens
                 return prepara_response.retorna_response(
                     templates.TemplateResponse(
                         "ordens.html",
@@ -216,6 +250,7 @@ async def inicia_separacao_item(
                 )
 
             else:
+                # Prepara os parâmetros para renderização da tela de leitura do endereço no almoxarifado
                 parametros = {
                     "request": request,
                     "ordem_separacao": ordem_separacao,
@@ -241,6 +276,7 @@ async def inicia_separacao_item(
                 )
 
         elif response.status_code == status.HTTP_409_CONFLICT:
+            # O retorno indica que a ordem de separação entrou para outro operador
             return prepara_response.retorna_response(
                 templates.TemplateResponse(
                     "ordens.html",
@@ -253,6 +289,7 @@ async def inicia_separacao_item(
             )
 
         elif response.status_code == status.HTTP_401_UNAUTHORIZED:
+            # Endpoint no backend negou acesso
             return await logout(
                 mensagem=response.json().get("detail", "Não autorizado!")
             )
@@ -282,6 +319,9 @@ async def inicia_separacao_item(
 
 @app.post("/logout", include_in_schema=False)
 async def logout(mensagem: str = None):
+    """
+    Endpoint limpa os tokens de segurança dos cookies e retorna a interface para a tela principal
+    """
     url = "/"
     if mensagem:
         url += f"?mensagem={quote(mensagem)}"
@@ -296,7 +336,11 @@ async def logout(mensagem: str = None):
 async def processa_login(
     request: Request, usuario: str = Form(...), senha: str = Form(...)
 ):
+    """
+    Endpoint faz o processamento do login após a confirmação de usuário e senha na tela inicial
+    """
     try:
+        # Invoca o endpoint de autenticação
         response_auth = requests.post(
             headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
             url=f"http://{ApiConfiguration.auth.URL}:{ApiConfiguration.auth.PORT}/auth",
@@ -310,6 +354,7 @@ async def processa_login(
             dados_autenticacao: dict = response_auth.json()["dados_autenticacao"]
             payload = valida_token(dados_autenticacao["token"])
             payload_refresh = valida_token(dados_autenticacao["refresh_token"])
+            # Monta o redirecionamento para a fila de separação
             response = RedirectResponse(
                 url="/ordens", status_code=status.HTTP_302_FOUND
             )
@@ -374,6 +419,9 @@ async def grava_separacao(
     endereco_coletado: str = Form(...),
     agrupador: Optional[str] = Form(None),
 ):
+    """
+    Endpoint para receber os dados da separação registrados no frontend e invocar a gravação no backend.
+    """
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
         return await logout(mensagem="Token de acesso inválido / expirado!")
@@ -422,6 +470,7 @@ async def grava_separacao(
             )
 
         elif not response.status_code == status.HTTP_200_OK:
+            # No caso de erro, renderiza novamente a tela de contagem exibindo a mensagem retornada pelo backend
             return prepara_response.retorna_response(
                 templates.TemplateResponse(
                     "contagem.html",
@@ -474,12 +523,15 @@ async def pular_item(
     endereco_coletado: str = Form(...),
     agrupador: Optional[str] = Form(None),
 ):
+    """
+    Endpoint acionado ao clicar no botão Pular na interface de registro da separação.
+    """
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
         return await logout(mensagem="Token de acesso inválido / expirado!")
 
-    # Aciona o endpoint pular_item e se retornar algum item, redireciona para a contagem
     try:
+        # Aciona o endpoint pular_item e se retornar algum item, redireciona para a contagem
         response = prepara_response.exec_request(
             url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/pular_item/{ordem_separacao}/{item}",
             metodo="post",
@@ -556,6 +608,10 @@ async def contagem_view(
     endereco_coletado: str = Query(...),
     agrupador: Optional[str] = Query(None),
 ):
+    """
+    Endpoint criado para acionar a renderização da tela de contagem pelo método GET.\n
+    A chamada direta via POST provoca erro no navegador na atualização da tela pelo browser.
+    """
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
         return await logout(mensagem="Token de acesso inválido / expirado!")
@@ -602,6 +658,9 @@ async def contagem(
     endereco_coletado: str = Form(...),
     agrupador: Optional[str] = Form(None),
 ):
+    """
+    Endpoint para receber os dados para o registro da contagem via POST do formulário de endereço.
+    """
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
         return await logout(mensagem="Token de acesso inválido / expirado!")
@@ -634,11 +693,15 @@ async def contagem(
 
 @app.post("/pausar", include_in_schema=False)
 async def pausar(request: Request, ordem_separacao: str = Form(...)):
+    """
+    Endpoint para receber o comando do botão pausar acionado na interface.
+    """
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
         return await logout(mensagem="Token de acesso inválido / expirado!")
 
     try:
+        # Envia a instrução de pausar a separação ao backend
         response = prepara_response.exec_request(
             url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/pausar_separacao/{ordem_separacao}",
             metodo="post",
@@ -646,16 +709,19 @@ async def pausar(request: Request, ordem_separacao: str = Form(...)):
         )
 
         if response.status_code == status.HTTP_200_OK:
+            # Retorna para a fila de separação no caso de sucesso
             return prepara_response.retorna_response(
                 RedirectResponse(url="/ordens", status_code=status.HTTP_302_FOUND)
             )
 
         elif response.status_code == status.HTTP_401_UNAUTHORIZED:
+            # Backend não autorizou a transação
             return await logout(
                 mensagem=response.json().get("detail", "Não autorizado!")
             )
 
         elif response.status_code == status.HTTP_409_CONFLICT:
+            # A ordem de separação está direcionada a outro operador
             return prepara_response.retorna_response(
                 templates.TemplateResponse(
                     "ordens.html",
