@@ -129,6 +129,25 @@ def tela_login(request: Request, mensagem: str = None):
     return response
 
 
+@app.get("/ordens/finalizada/{ordem_separacao}")
+async def ordem_separacao_finalizada(request: Request, ordem_separacao: str):
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
+
+    return prepara_response.retorna_response(
+        templates.TemplateResponse(
+            "ordens.html",
+            {
+                "request": request,
+                "erro": f"Ordem de separação {ordem_separacao} finalizada!",
+                "usuario_nome": prepara_response.nome_usuario,
+            },
+            status_code=status.HTTP_302_FOUND,
+        )
+    )
+
+
 @app.get("/ordens", include_in_schema=False)
 async def lista_ordens_separacao(request: Request):
     """
@@ -458,13 +477,8 @@ async def grava_separacao(
         elif response.status_code == status.HTTP_204_NO_CONTENT:
             # Ordem de separação gravada sem retornar novos itens, é ordem finalizada
             return prepara_response.retorna_response(
-                templates.TemplateResponse(
-                    "ordens.html",
-                    {
-                        "request": request,
-                        "erro": f"Ordem de separação {ordem_separacao} finalizada!",
-                        "usuario_nome": prepara_response.nome_usuario,
-                    },
+                RedirectResponse(
+                    url=f"/ordens/finalizada/{ordem_separacao}",
                     status_code=status.HTTP_302_FOUND,
                 )
             )
