@@ -109,13 +109,19 @@
 
 <body>
   <script>
-    // trava o botão Voltar antes de tudo
+    // Se a posição já foi lida, retorna para a fila de separação
     (function () {
-      history.replaceState(null, "", location.href);
-      history.pushState(null, "", location.href);
-      window.addEventListener("popstate", function () {
-        history.pushState(null, "", location.href);
-      });
+      const ordemSeparacao = "{{ ordem_separacao }}";
+      const itemSeparacao = "{{ item }}"
+      try {
+        const itensLidos = JSON.parse(sessionStorage.getItem("itensLidos") || "[]");
+        if (itensLidos.includes(`${ordemSeparacao}|${itemSeparacao}`)) {
+          window.location.href = "/ordens";
+        }
+      } catch (e) {
+        // Se der erro no JSON, também redireciona por segurança
+        window.location.href = "/ordens";
+      }
     })();
   </script>
 
@@ -168,6 +174,15 @@
     </div>
 
     <script>
+      function armazenaItemLido() {
+        // Armazena o item lido para não permitir voltar na página pelo navegador
+        const ordemSeparacao = "{{ ordem_separacao }}";
+        const itemSeparacao = "{{ item }}"
+        const itensLidos = JSON.parse(sessionStorage.getItem("itensLidos") || "[]");
+        itensLidos.push(`${ordemSeparacao}|${itemSeparacao}`);
+        sessionStorage.setItem("itensLidos", JSON.stringify(itensLidos));
+      }
+
       function separarItem() {
         // Codigo lido ou digitado pelo operador
         const codigoItem = document.getElementById("campo_codigo").value.trim();
@@ -207,6 +222,9 @@
         }
 
         document.body.appendChild(formularioSeparacao);
+
+        armazenaItemLido()
+
         formularioSeparacao.submit();
       }
 
@@ -239,6 +257,9 @@
           }
 
           document.body.appendChild(formularioPularItemSeparacao);
+
+          armazenaItemLido();
+
           formularioPularItemSeparacao.submit()
         }
       }
@@ -267,6 +288,13 @@
         }
       ).catch(err => {
         alert("Erro ao acessar a câmera: " + err);
+      });
+    </script>
+    <script>
+      window.addEventListener("pageshow", function (event) {
+        if (event.persisted) {
+          console.log("Voltou com backward (bfcache)");
+        }
       });
     </script>
 </body>

@@ -58,13 +58,18 @@
 
 <body>
   <script>
-    // trava o botão Voltar antes de tudo
+    // Se a posição já foi lida, retorna para a fila de separação
     (function () {
-      history.replaceState(null, "", location.href);
-      history.pushState(null, "", location.href);
-      window.addEventListener("popstate", function () {
-        history.pushState(null, "", location.href);
-      });
+      const enderecoAtual = "{{ posicao }}".trim().toUpperCase();
+      try {
+        const enderecosLidos = JSON.parse(sessionStorage.getItem("enderecosLidos") || "[]");
+        if (enderecosLidos.includes(enderecoAtual)) {
+          window.location.href = "/ordens";
+        }
+      } catch (e) {
+        // Se der erro no JSON, também redireciona por segurança
+        window.location.href = "/ordens";
+      }
     })();
   </script>
 
@@ -145,6 +150,12 @@
       }
 
       document.body.appendChild(formulario);
+
+      // Armazena o endereço lido para não permitir voltar na página pelo navegador
+      const enderecosLidos = JSON.parse(sessionStorage.getItem("enderecosLidos") || "[]");
+      enderecosLidos.push(enderecoColetado.trim().toUpperCase());
+      sessionStorage.setItem("enderecosLidos", JSON.stringify(enderecosLidos));
+
       formulario.submit();
     }
 
@@ -154,7 +165,7 @@
         if (validarEndereco(endereco)) {
           ativarContagem(endereco);
         } else {
-          alert("Endereço não cadastrado!")
+          alert("Endereço inválido!")
         }
       } else {
         alert("Informe um endereço válido!")

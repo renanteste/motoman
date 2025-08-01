@@ -90,17 +90,6 @@
 </head>
 
 <body>
-  <script>
-    // trava o botão Voltar antes de tudo
-    (function () {
-      history.replaceState(null, "", location.href);
-      history.pushState(null, "", location.href);
-      window.addEventListener("popstate", function () {
-        history.pushState(null, "", location.href);
-      });
-    })();
-  </script>
-
   <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
     <div style="font-size: 1em; color: #9e0303;">Operador:
       {{ usuario_nome }}
@@ -164,6 +153,9 @@
   <script>
     function confirmarInicio(ordem_separacao) {
       if (confirm("Deseja iniciar a separação da ordem " + ordem_separacao + "?")) {
+        // Limpa os itens lidos para iniciar novo ciclo
+        sessionStorage.setItem("enderecosLidos", JSON.stringify([]));
+        sessionStorage.setItem("itensLidos", JSON.stringify([]));
         window.location.href = "/inicia_separacao/" + encodeURIComponent(ordem_separacao);
       }
     }
@@ -173,6 +165,7 @@
       window.location.reload();
     }, 60000);
   </script>
+
 </body>
 
 </html>
