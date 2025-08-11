@@ -27,7 +27,7 @@
     #reader {
       width: 100%;
       max-width: 400px;
-      margin: 0 auto 1.5rem auto;
+      margin: 20px auto 1.5rem auto;
     }
 
     .manual {
@@ -101,12 +101,12 @@
   </div>
   {% endif %}
 
-  <div id="reader"></div>
-
   <div class="manual">
     <input type="text" id="endereco_coletado" style="text-transform: uppercase;" />
     <button id="botao_confirmar">Confirmar</button>
   </div>
+
+  <div id="reader"></div>
 
   <script>
     function validarEndereco(enderecoParametro) {
