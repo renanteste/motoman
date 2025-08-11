@@ -192,8 +192,19 @@
     });
 
     document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById("botao_confirmar").addEventListener("click", confirmarEndereco)
+      document.getElementById("botao_confirmar").addEventListener("click", confirmarEndereco);
     });
+
+    // Confirma automaticamente o endereço se a origem da separação for compra dedicada
+    const origem = "{{ origem }}";
+
+    if (origem === "5") {
+      const posicao = "{{ posicao }}".trim().toUpperCase();
+      const campoEndereco = document.getElementById("endereco_coletado");
+      campoEndereco.value = posicao;
+      confirmarEndereco();
+    }
+
     document.getElementById("endereco_coletado").addEventListener("input", function (e) {
       this.value = this.value.toUpperCase();
     });

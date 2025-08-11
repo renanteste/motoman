@@ -411,6 +411,7 @@ class OrdensSeparacao:
         item_anterior = item_anterior if item_anterior else " "
         itens_ordem_separacao: List[ItemOrdemSeparacao] = []
         cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
+        cb7 = aliased(ordens_separacao_cb7, name="cb7")
         z0o = aliased(posicoes_z0o, name="z0o")
         sb1 = aliased(produtos_sb1, name="sb1")
         afa = aliased(insumos_projetos_afa, name="afa")
@@ -451,6 +452,7 @@ class OrdensSeparacao:
                 cast(cb8.c.CB8_SALDOS, Numeric(10, 2)).label("saldo_separar"),
                 cb8.c.CB8_SEQUEN.label("sequencia_pedido"),
                 afa.c.AFA_XAGRUP.label("agrupador"),
+                cb7.c.CB7_ORIGEM.label("origem"),
             )
             .select_from(
                 cb8.join(
@@ -459,6 +461,14 @@ class OrdensSeparacao:
                         sb1.c.D_E_L_E_T_ == " ",
                         sb1.c.B1_FILIAL == "01",
                         sb1.c.B1_COD == cb8.c.CB8_PROD,
+                    ),
+                )
+                .join(
+                    cb7,
+                    and_(
+                        cb7.c.D_E_L_E_T_ == " ",
+                        cb7.c.CB7_FILIAL == "01",
+                        cb7.c.CB7_ORDSEP == cb8.c.CB8_ORDSEP,
                     ),
                 )
                 .outerjoin(
@@ -495,6 +505,7 @@ class OrdensSeparacao:
                 cb8.c.CB8_QTDORI,
                 cb8.c.CB8_SALDOS,
                 afa.c.AFA_XAGRUP,
+                cb7.c.CB7_ORIGEM,
             )
             .subquery("itens")
         )

@@ -137,7 +137,7 @@
     <div class="linha"><strong>Pedido:</strong> {{ ordem.pedido_vendas or "-" }}</div>
     <div class="linha"><strong>Cliente:</strong> {{ ordem.nome_cliente or "-" }}</div>
     <div class="linha"><strong>Prj/Célula:</strong> {{ ordem.projeto }} / {{ ordem.celula }}</div>
-    <div class="linha"><strong>Origem:</strong> {{ ordem.origem }}</div>
+    <div class="linha"><strong>Origem:</strong> {{ ordem.descricao_origem }}</div>
     <div class="linha"><strong>Contêiner:</strong> {{ ordem.conteiner or "-" }}</div>
     <div class="linha"><strong>Status:</strong> {{ ordem.label.split(":", 1)[1] }}</div>
     <div class="status-bar status-{{ ordem.label.split(':', 1)[0] }}"></div>

@@ -174,7 +174,7 @@ async def lista_ordens_separacao(request: Request):
                     int(ordem.get("prioridade", "0"))
                 ]
                 # Trata o conteúdo do campo origem da ordem de separação
-                ordem["origem"] = (
+                ordem["descricao_origem"] = (
                     "Compra Dedicada" if ordem["origem"] == "5" else "Estoque"
                 )
 
@@ -283,6 +283,7 @@ async def inicia_separacao_item(
                     "pedido": itens[0]["pedido"],
                     "sequencia_pedido": itens[0]["sequencia_pedido"],
                     "usuario_nome": prepara_response.nome_usuario,
+                    "origem": itens[0]["origem"],
                 }
                 if itens[0].get("enderecos_alternativos"):
                     parametros["enderecos_alternativos"] = "|".join(

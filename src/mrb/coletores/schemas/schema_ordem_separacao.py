@@ -141,6 +141,13 @@ class ItemOrdemSeparacao(BaseModel):
         examples=["01"],
         description="Sequencial de liberação do pedido de vendas",
     )
+    origem: str = Field(
+        ...,
+        max_length=1,
+        min_length=1,
+        examples=["5"],
+        description="Origem da ordem de separação. Se '5' é Compra Dedicada, caso contrário, Estoque.",
+    )
     agrupador: Optional[str] = Field(
         None,
         max_length=20,
