@@ -27,7 +27,7 @@
     #reader {
       width: 100%;
       max-width: 400px;
-      margin: 0 auto 1.5rem auto;
+      margin: 20px auto 1.5rem auto;
     }
 
     .manual {
@@ -57,6 +57,22 @@
 </head>
 
 <body>
+  <script>
+    // Se a posição já foi lida, retorna para a fila de separação
+    (function () {
+      const enderecoAtual = "{{ posicao }}".trim().toUpperCase();
+      try {
+        const enderecosLidos = JSON.parse(sessionStorage.getItem("enderecosLidos") || "[]");
+        if (enderecosLidos.includes(enderecoAtual)) {
+          window.location.href = "/ordens";
+        }
+      } catch (e) {
+        // Se der erro no JSON, também redireciona por segurança
+        window.location.href = "/ordens";
+      }
+    })();
+  </script>
+
   <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
     <div style="font-size: 1em; color: #9e0303;">Operador:
       {{ usuario_nome }}
@@ -85,39 +101,45 @@
   </div>
   {% endif %}
 
-  <div id="reader"></div>
-
   <div class="manual">
-    <input type="text" id="endereco_coletado" placeholder="Digite o endereço" />
-    <button onclick="confirmarEndereco()">Confirmar</button>
+    <input type="text" id="endereco_coletado" style="text-transform: uppercase;" />
+    <button id="botao_confirmar">Confirmar</button>
   </div>
+
+  <div id="reader"></div>
 
   <script>
     function validarEndereco(enderecoParametro) {
       const endereco = enderecoParametro.trim().toUpperCase();
-      const enderecoPrincipal = "{{ posicao | escapejs }}".trim().toUpperCase();
-      const enderecosAlternativos = "{{ enderecos_alternativos | default('') | escapejs }}".split("|").map(e => e.trim().toUpperCase()).filter(e => e);
+      const enderecoPrincipal = "{{ posicao }}".trim().toUpperCase();
+      const enderecosAlternativos = "{{ enderecos_alternativos | default('') }}".split("|").map(e => e.trim().toUpperCase()).filter(e => e);
       return endereco === enderecoPrincipal || enderecosAlternativos.includes(endereco);
     }
 
     function ativarContagem(enderecoColetado) {
-      document.querySelector("form#envioContagem")?.remove()
+      document.querySelector("form#envioContagem")?.remove();
       const formulario = document.createElement("form");
       formulario.id = "envioContagem"
-      formulario.method = "POST";
-      formulario.action("/contagem");
+      formulario.method = "post";
+      formulario.action = "/contagem";
+
 
       const camposFormulario = {
-        ordem_separacao: "{{ ordem_separacao | escapejs }}",
-        item: "{{ item | escapejs }}",
-        codigo_produto: "{{ codigo_produto | escapejs }}",
-        posicao: "{{ posicao | escapejs }}",
-        saldo_separar: "{{ saldo_separar | escapejs }}",
-        almoxarifado: "{{ almoxarifado | escapejs }}",
-        pedido: "{{ pedido | escapejs }}",
-        sequencia_pedido: "{{ sequencia_pedido | escapejs }}",
+        ordem_separacao: "{{ ordem_separacao }}",
+        item: "{{ item }}",
+        codigo_produto: "{{ codigo_produto }}",
+        descricao_produto: "{{ descricao_produto }}",
+        saldo_separar: "{{ saldo_separar }}",
+        almoxarifado: "{{ almoxarifado }}",
+        pedido: "{{ pedido }}",
+        sequencia_pedido: "{{ sequencia_pedido }}",
         endereco_coletado: enderecoColetado
       };
+
+      const agrupador = "{{ agrupador | default('') }}".trim();
+      if (agrupador && agrupador !== "None") {
+        camposFormulario.agrupador = agrupador;
+      }
 
       for (const chave in camposFormulario) {
         const input = document.createElement("input");
@@ -128,6 +150,12 @@
       }
 
       document.body.appendChild(formulario);
+
+      // Armazena o endereço lido para não permitir voltar na página pelo navegador
+      const enderecosLidos = JSON.parse(sessionStorage.getItem("enderecosLidos") || "[]");
+      enderecosLidos.push(enderecoColetado.trim().toUpperCase());
+      sessionStorage.setItem("enderecosLidos", JSON.stringify(enderecosLidos));
+
       formulario.submit();
     }
 
@@ -137,7 +165,7 @@
         if (validarEndereco(endereco)) {
           ativarContagem(endereco);
         } else {
-          alert("Endereço não cadastrado!")
+          alert("Endereço inválido!")
         }
       } else {
         alert("Informe um endereço válido!")
@@ -162,6 +190,25 @@
     ).catch(err => {
       alert("Erro ao acessar a câmera: " + err);
     });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("botao_confirmar").addEventListener("click", confirmarEndereco);
+    });
+
+    // Confirma automaticamente o endereço se a origem da separação for compra dedicada
+    const origem = "{{ origem }}";
+
+    if (origem === "5") {
+      const posicao = "{{ posicao }}".trim().toUpperCase();
+      const campoEndereco = document.getElementById("endereco_coletado");
+      campoEndereco.value = posicao;
+      confirmarEndereco();
+    }
+
+    document.getElementById("endereco_coletado").addEventListener("input", function (e) {
+      this.value = this.value.toUpperCase();
+    });
+
   </script>
 </body>
 

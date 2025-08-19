@@ -29,6 +29,35 @@ class OrdemSeparacao(BaseModel):
         examples=["CELNAC012124A"],
         description="Código do produto resultado do projeto",
     )
+    prioridade: str = Field(
+        ...,
+        min_length=1,
+        max_length=1,
+        examples=["0", "5", "9"],
+        description="Prioridade como string entre '0' e '9'",
+    )
+    origem: str = Field(
+        ...,
+        max_length=1,
+        min_length=1,
+        examples=[
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+        ],
+        description="Origem da ordem de separação:\n"
+        "1 = Pedido\n"
+        "2 = Nota Fiscal\n"
+        "3 = Produção\n"
+        "4 = Estrutura\n"
+        "5 = Conteiner\n"
+        "6 = Fora estrutura\n"
+        "7 = Solicitação ao armazém",
+    )
     pedido_vendas: Optional[str] = Field(
         None,
         max_length=6,
@@ -47,8 +76,13 @@ class OrdemSeparacao(BaseModel):
         examples=["COMPRADOS"],
         description="Código que identifica o contêiner relacionado à ordem de separação",
     )
+    label: Optional[str] = Field(
+        None,
+        examples=["1:Divergência", "2:Em pausa"],
+        description="Etiqueta que identifica a situação da ordem de separação",
+    )
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
 
 
 class ItemOrdemSeparacao(BaseModel):
@@ -72,6 +106,13 @@ class ItemOrdemSeparacao(BaseModel):
         min_length=1,
         examples=["158105-1"],
         description="Código do material que será separado",
+    )
+    descricao_produto: str = Field(
+        ...,
+        max_length=50,
+        min_length=1,
+        examples=["SUPORTE VALVULA"],
+        description="Descrição do material",
     )
     almoxarifado: str = Field(
         ...,
@@ -99,6 +140,19 @@ class ItemOrdemSeparacao(BaseModel):
         max_length=2,
         examples=["01"],
         description="Sequencial de liberação do pedido de vendas",
+    )
+    origem: str = Field(
+        ...,
+        max_length=1,
+        min_length=1,
+        examples=["5"],
+        description="Origem da ordem de separação. Se '5' é Compra Dedicada, caso contrário, Estoque.",
+    )
+    agrupador: Optional[str] = Field(
+        None,
+        max_length=20,
+        examples=["11002E", "INFOTP1PCP01"],
+        description="Código agrupador do material na estrutura do projeto.",
     )
     enderecos_alternativos: Optional[List[str]] = Field(
         None,

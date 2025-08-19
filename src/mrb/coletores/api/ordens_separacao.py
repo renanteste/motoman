@@ -1,7 +1,7 @@
+from datetime import date, datetime
 from decimal import Decimal
-import time
-from typing import List, Union
-from fastapi import APIRouter, Depends, HTTPException, Header, Response, status
+from typing import List, Optional, Union
+from fastapi import APIRouter, Depends, HTTPException, Header, Path, Response, status
 from sqlalchemy import (
     Integer,
     Numeric,
@@ -9,19 +9,20 @@ from sqlalchemy import (
     String,
     Tuple,
     and_,
+    case,
     cast,
     func,
     insert,
     literal,
     literal_column,
     select,
-    text,
     union_all,
     update,
 )
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.mrb.common.lib.log_httpexception_raise import NivelLog, log_httpexception_raise
 from src.mrb.common.lib.prepara_dados_protheus import prepara_dados_protheus
 from src.mrb.common.config import Environment
 from src.mrb.coletores.schemas.schema_ordem_separacao import (
@@ -30,7 +31,7 @@ from src.mrb.coletores.schemas.schema_ordem_separacao import (
     OrdemSeparacao,
     RegistraSeparacao,
 )
-from src.mrb.common.security.auth_service import valida_token
+from src.mrb.common.security.auth_service import AuthService, valida_token
 from src.mrb.common.database.db_engine import get_db
 from src.mrb.common.models.model_recursos_protheus import recursos_ae8
 from src.mrb.common.models.model_usuarios_portal import usuarios_szk
@@ -42,16 +43,27 @@ from src.mrb.coletores.models.model_itens_ordem_separacao import (
 )
 from src.mrb.coletores.models.model_registro_separacao import registro_separacao_cb9
 from src.mrb.comercial.models.model_clientes import clientes_sa1
+from src.mrb.common.models.model_produtos_sb1 import produtos_sb1
+from src.mrb.common.models.model_insumos_projeto_afa import insumos_projetos_afa
 
 ordens_separacao_router = APIRouter()
 
+OPERADOR_PADRAO = "000000"
+
 
 class OrdensSeparacao:
+    """
+    Classe para gravação e recuperação de dados do processo de separação de materiais.
+    """
+
     def __init__(self, db: Session) -> None:
         self.db = db
         self.codigo_operador: str = None
 
     def lista_ordens_separacao(self, usuario_operador: str):
+        """
+        Recupera a lista de ordens de separação determinadas para o operador do parâmetro ou do operador padrão '000000'.
+        """
         cb7 = aliased(ordens_separacao_cb7, name="cb7")
         sa1 = aliased(clientes_sa1, name="sa1")
 
@@ -61,10 +73,13 @@ class OrdensSeparacao:
         # Acrescenta o código de operador da fila de separação, onde todos podem atender
         # e monta a CTE para o WITH na seleção das ordens de separação
         query_operador = union_all(
-            query_usuario, select(literal("000000").label("CB1_CODOPE"))
+            query_usuario, select(literal(OPERADOR_PADRAO).label("CB1_CODOPE"))
         ).cte("operadores")
 
-        # Seleciona as ordens de separação vinculadas ao operador e na fila de separação
+        # Seleciona as ordens de separação vinculadas ao operador e na fila de separação.
+        # Ordena por prioridade, operador (decrescente) e ordem de separação,
+        # fazendo com que as mais prioritárias venham no início da fila, seguidas pelas
+        # que foram determinadas ao operador e em seguida, pelas mais antigas (numeração)
         query = (
             select(
                 cb7.c.CB7_ORDSEP.label("ordem_separacao"),
@@ -73,6 +88,14 @@ class OrdensSeparacao:
                 cb7.c.CB7_XPROJE.label("projeto"),
                 cb7.c.CB7_XPROD.label("celula"),
                 cb7.c.CB7_XCONTE.label("conteiner"),
+                cb7.c.CB7_DIVERG.label("divergencia"),
+                cb7.c.CB7_STATPA.label("em_pausa"),
+                cb7.c.CB7_STATUS.label("status"),
+                cb7.c.CB7_XTPENT.label("tipo_entrega"),
+                cb7.c.CB7_NOTA.label("nota_fiscal"),
+                cb7.c.CB7_XQTDIM.label("quantidade_impressoes"),
+                cb7.c.CB7_PRIORI.label("prioridade"),
+                cb7.c.CB7_ORIGEM.label("origem"),
             )
             .select_from(
                 cb7.join(
@@ -89,41 +112,88 @@ class OrdensSeparacao:
             )
             .where(
                 and_(
-                    cb7.c.D_E_L_E_T_ == "",
+                    cb7.c.D_E_L_E_T_ == " ",
                     cb7.c.CB7_FILIAL == "01",
                     cb7.c.CB7_ORDSEP >= " ",
                     cb7.c.CB7_CODOPE != " ",
                     cb7.c.CB7_STATUS.between("0", "8"),
                 )
             )
-        ).order_by(cb7.c.CB7_PRIORI, cb7.c.CB7_ORDSEP)
+        ).order_by(cb7.c.CB7_PRIORI, cb7.c.CB7_CODOPE.desc(), cb7.c.CB7_ORDSEP)
 
         try:
             resultado = self.db.execute(query).mappings().all()
-            ordens_separacao = [
-                OrdemSeparacao.model_validate(
-                    {
-                        chave: valor.strip() if isinstance(valor, str) else valor
-                        for chave, valor in row.items()
-                    }
-                )
-                for row in resultado
-            ]
+            ordens_separacao = []
+            for row in resultado:
+                dados = {
+                    chave: valor.strip() if isinstance(valor, str) else valor
+                    for chave, valor in row.items()
+                }
+                dados["label"] = self.situacao_ordem_separacao(dados_separacao=dados)
+                ordens_separacao.append(OrdemSeparacao.model_validate(dados))
+
             return ListaOrdensSeparacao(
                 total_de_registros=len(ordens_separacao),
                 ordens_separacao=ordens_separacao,
             )
 
-        except HTTPException:
-            raise
-
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro ao selecionar as ordens de separação para o operador: {e}",
+                mensagem="Erro ao selecionar as ordens de separação para o operador",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
+    def situacao_ordem_separacao(self, dados_separacao: dict) -> str:
+        """
+        Método aplica conjunto específico de regras para retornar a situação 'legenda' da ordem de separação
+        de acordo com os dados recuperados do sistema.
+        """
+        regras_legendas = [
+            (lambda dados: dados.get("divergencia") == "1", "1:Divergência"),
+            (lambda dados: dados.get("em_pausa") == "1", "2:Em pausa"),
+            (
+                lambda dados: dados.get("status") == "9"
+                and dados.get("tipo_entrega").strip() == ""
+                and dados.get("nota_fiscal").strip() == "",
+                "3:Finalizada",
+            ),
+            (
+                lambda dados: dados.get("status") >= "1" and dados.get("status") <= "8",
+                "4:Em andamento",
+            ),
+            (
+                lambda dados: dados.get("status") == "0"
+                and dados.get("quantidade_impressoes") > 0,
+                "5:Impressa",
+            ),
+            (lambda dados: dados.get("status") == "0", "6:Não iniciada"),
+            (
+                lambda dados: dados.get("status") == "9"
+                and dados.get("tipo_entrega") == "4",
+                "7:Encerrada - contêiner não entregue",
+            ),
+            (
+                lambda dados: dados.get("status") == "9"
+                and (
+                    not dados.get("tipo_entrega").strip() == ""
+                    or not dados.get("nota_fiscal").strip() == ""
+                ),
+                "8:Encerrada - entregue",
+            ),
+        ]
+        for condicao, legenda in regras_legendas:
+            if condicao(dados_separacao):
+                return legenda
+
+        return "0:Indefinida"
+
     def query_usuario(self, usuario_operador: str) -> Select[Tuple]:
+        """
+        Montagem da query para seleção do usuário operador.
+        """
         cb1 = aliased(operadores_cb1, name="cb1")
         szk = aliased(usuarios_szk, name="szk")
         ae8 = aliased(recursos_ae8, name="ae8")
@@ -163,16 +233,23 @@ class OrdensSeparacao:
             codigo_operador = self.db.execute(
                 self.query_usuario(usuario_operador)
             ).scalar()
+            codigo_operador = codigo_operador if codigo_operador else OPERADOR_PADRAO
 
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro ao buscar código do operador: {e}",
+                mensagem="Erro ao buscar código do operador",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         return codigo_operador
 
     def atualiza_operador(self, ordem_separacao: str, usuario_operador: str):
+        """
+        Atualiza o código do operador na ordem de separação.
+        """
         self.codigo_operador = self.recupera_operador_usuario(usuario_operador)
 
         cb7 = aliased(ordens_separacao_cb7, name="cb7")
@@ -188,68 +265,75 @@ class OrdensSeparacao:
         )
 
         try:
-            # Inicia a transação
-            self.db.begin()
-
             # Recupera o código do operador da ordem de separação bloqueando o registro
             operador_atual: str = self.db.execute(query).scalar()
 
         except SQLAlchemyError as e:
             self.db.rollback()
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro ao buscar a ordem de separação: {e}",
+                mensagem="Falha ao recuperar código do operador na Ordem de Separação",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         operador_atual = (
-            operador_atual if operador_atual and (operador_atual.strip()) else "000000"
+            operador_atual
+            if operador_atual and (operador_atual.strip())
+            else OPERADOR_PADRAO
         )
 
         # Valida que não está para outro operador
         # Não é fila de separação e é de outro operador
         if (
-            not operador_atual == "000000"
+            not operador_atual == OPERADOR_PADRAO
             and not operador_atual == self.codigo_operador
         ):
             self.db.rollback()
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"A ordem de separação foi capturada pelo operador {operador_atual}",
+                mensagem=f"A ordem de separação foi capturada pelo operador {operador_atual}",
+                nivel_log=NivelLog.WARNING,
             )
 
         # Se for fila de separação ou do próprio operador atualiza o operador e inicializa a separação
-        if operador_atual == "000000" or operador_atual == self.codigo_operador:
+        if operador_atual == OPERADOR_PADRAO or operador_atual == self.codigo_operador:
             query = (
-                update(cb7)
+                update(ordens_separacao_cb7)
                 .where(
-                    cb7.c.D_E_L_E_T_ == " ",
-                    cb7.c.CB7_FILIAL == "01",
-                    cb7.c.CB7_ORDSEP == ordem_separacao,
+                    ordens_separacao_cb7.c.D_E_L_E_T_ == " ",
+                    ordens_separacao_cb7.c.CB7_FILIAL == "01",
+                    ordens_separacao_cb7.c.CB7_ORDSEP == ordem_separacao,
                 )
                 .values(CB7_CODOPE=self.codigo_operador, CB7_STATUS="1", CB7_STATPA="0")
             )
             try:
                 self.db.execute(query)
+                self.db.commit()
 
             except SQLAlchemyError as e:
                 self.db.rollback()
-                raise HTTPException(
+                log_httpexception_raise(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Falha ao inicar a separação {e}",
+                    mensagem="Falha ao atualizar operador na Ordem de Separação",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
                 )
 
             # Pausa as demais ordens de separação que estiverem em andamento para o operador
             query = (
-                update(cb7)
+                update(ordens_separacao_cb7)
                 .where(
-                    cb7.c.D_E_L_E_T_ == "",
-                    cb7.c.CB7_FILIAL == "01",
-                    cb7.c.CB7_ORDSEP != ordem_separacao,
-                    cb7.c.CB7_CODOPE == self.codigo_operador,
-                    cb7.c.CB7_STATUS >= "1",
-                    cb7.c.CB7_STATUS <= "8",
-                    cb7.c.CB7_DIVERG != "1",
-                    cb7.c.CB7_STATPA != "1",
+                    ordens_separacao_cb7.c.D_E_L_E_T_ == " ",
+                    ordens_separacao_cb7.c.CB7_FILIAL == "01",
+                    ordens_separacao_cb7.c.CB7_ORDSEP != ordem_separacao,
+                    ordens_separacao_cb7.c.CB7_CODOPE == self.codigo_operador,
+                    ordens_separacao_cb7.c.CB7_STATUS >= "1",
+                    ordens_separacao_cb7.c.CB7_STATUS <= "8",
+                    ordens_separacao_cb7.c.CB7_DIVERG != "1",
+                    ordens_separacao_cb7.c.CB7_STATPA != "1",
                 )
                 .values(CB7_STATPA="1")
             )
@@ -259,22 +343,102 @@ class OrdensSeparacao:
 
             except SQLAlchemyError as e:
                 self.db.rollback()
-                raise HTTPException(
+                log_httpexception_raise(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Falha ao pausar separações do operador {e}",
+                    mensagem="Falha ao pausar separações do operador",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
                 )
 
+        self.db.rollback()
+
     def recupera_itens(
-        self, ordem_separacao: str, item_anterior: str = " "
+        self, ordem_separacao: str, item_anterior: str = " ", item: str = None
     ) -> List[ItemOrdemSeparacao]:
-        itens_ordem_separacao: List[ItemOrdemSeparacao] = None
+        """
+        Recupera os itens da ordem de separação.\n
+        Se o argumento 'item' for informado, será retornado apenas o item.\n
+        Caso 'item_anterior' seja informado, irá retornar o próximo item na ordem POSICAO + ITEM.
+        """
+
+        def recupera_posicao_item() -> str:
+            query_item = (
+                select(
+                    func.min(
+                        func.coalesce(
+                            z0o.c.Z0O_POSICA,
+                            cast(cast(cb8.c.CB8_LOCAL, Integer), String)
+                            + literal_column("'-ALMOX'"),
+                        )
+                    ).label("posicao")
+                )
+                .select_from(
+                    cb8.outerjoin(
+                        z0o,
+                        and_(
+                            z0o.c.D_E_L_E_T_ == " ",
+                            z0o.c.Z0O_FILIAL == "01",
+                            z0o.c.Z0O_COD == cb8.c.CB8_PROD,
+                            z0o.c.Z0O_LOCAL == cb8.c.CB8_LOCAL,
+                        ),
+                    )
+                )
+                .where(
+                    and_(
+                        cb8.c.D_E_L_E_T_ == " ",
+                        cb8.c.CB8_FILIAL == "01",
+                        cb8.c.CB8_ORDSEP == ordem_separacao,
+                        cb8.c.CB8_ITEM == item_anterior,
+                    )
+                )
+            )
+
+            try:
+                posicao_item = self.db.execute(query_item).scalar()
+
+                return posicao_item + item_anterior if posicao_item else " "
+
+            except SQLAlchemyError as e:
+                log_httpexception_raise(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    mensagem="Falha ao recuperar posição do item da separação",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
+                )
+
+        item_anterior = item_anterior if item_anterior else " "
+        itens_ordem_separacao: List[ItemOrdemSeparacao] = []
         cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
+        cb7 = aliased(ordens_separacao_cb7, name="cb7")
         z0o = aliased(posicoes_z0o, name="z0o")
-        query = (
+        sb1 = aliased(produtos_sb1, name="sb1")
+        afa = aliased(insumos_projetos_afa, name="afa")
+        if not item_anterior.strip() == "":
+            item_posicao = recupera_posicao_item()
+
+        else:
+            item_posicao = " "
+
+        condicao = [
+            cb8.c.D_E_L_E_T_ == " ",
+            cb8.c.CB8_FILIAL == "01",
+            cb8.c.CB8_ORDSEP == ordem_separacao,
+            cb8.c.CB8_ITEM >= " ",
+            cb8.c.CB8_SEQUEN >= " ",
+            cb8.c.CB8_PROD >= " ",
+            cb8.c.CB8_SALDOS > 0,
+        ]
+        if item:
+            condicao.append(cb8.c.CB8_ITEM == item)
+
+        subquery_itens = (
             select(
                 cb8.c.CB8_ITEM.label("item"),
                 cb8.c.CB8_PEDIDO.label("pedido"),
                 cb8.c.CB8_PROD.label("codigo_produto"),
+                func.trim(sb1.c.B1_DESC).label("descricao_produto"),
                 cb8.c.CB8_LOCAL.label("almoxarifado"),
                 func.min(
                     func.coalesce(
@@ -287,34 +451,70 @@ class OrdensSeparacao:
                 cast(cb8.c.CB8_QTDORI, Numeric(10, 2)).label("quantidade_original"),
                 cast(cb8.c.CB8_SALDOS, Numeric(10, 2)).label("saldo_separar"),
                 cb8.c.CB8_SEQUEN.label("sequencia_pedido"),
+                afa.c.AFA_XAGRUP.label("agrupador"),
+                cb7.c.CB7_ORIGEM.label("origem"),
             )
             .select_from(
-                cb8.outerjoin(
+                cb8.join(
+                    sb1,
+                    and_(
+                        sb1.c.D_E_L_E_T_ == " ",
+                        sb1.c.B1_FILIAL == "01",
+                        sb1.c.B1_COD == cb8.c.CB8_PROD,
+                    ),
+                )
+                .join(
+                    cb7,
+                    and_(
+                        cb7.c.D_E_L_E_T_ == " ",
+                        cb7.c.CB7_FILIAL == "01",
+                        cb7.c.CB7_ORDSEP == cb8.c.CB8_ORDSEP,
+                    ),
+                )
+                .outerjoin(
                     z0o,
                     and_(
-                        z0o.c.D_E_L_E_T_ == "",
+                        z0o.c.D_E_L_E_T_ == " ",
                         z0o.c.Z0O_FILIAL == "01",
                         z0o.c.Z0O_COD == cb8.c.CB8_PROD,
                         z0o.c.Z0O_LOCAL == cb8.c.CB8_LOCAL,
                     ),
                 )
-            )
-            .where(
-                and_(
-                    cb8.c.D_E_L_E_T_ == " ",
-                    cb8.CB8_FILIAL == "01",
-                    cb8.c.CB8_ORDSEP == ordem_separacao,
-                    cb8.c.CB8_ITEM > item_anterior,
+                .outerjoin(
+                    afa,
+                    and_(
+                        afa.c.D_E_L_E_T_ == " ",
+                        afa.c.AFA_FILIAL == "01",
+                        afa.c.AFA_PROJET == cb8.c.CB8_XPROJE,
+                        afa.c.AFA_REVISA >= " ",
+                        afa.c.AFA_TAREFA == cb8.c.CB8_XTAREF,
+                        afa.c.AFA_ITEM == cb8.c.CB8_XITTAR,
+                        afa.c.AFA_PRODUT == cb8.c.CB8_PROD,
+                        afa.c.AFA_XPROD == cb8.c.CB8_XPROD,
+                    ),
                 )
             )
+            .where(and_(*condicao))
             .group_by(
                 cb8.c.CB8_ITEM,
+                cb8.c.CB8_PEDIDO,
+                cb8.c.CB8_SEQUEN,
                 cb8.c.CB8_PROD,
+                sb1.c.B1_DESC,
                 cb8.c.CB8_LOCAL,
                 cb8.c.CB8_QTDORI,
                 cb8.c.CB8_SALDOS,
+                afa.c.AFA_XAGRUP,
+                cb7.c.CB7_ORIGEM,
             )
-            .order_by(func.min(z0o.c.Z0O_POSICA), cb8.c.CB8_ITEM)
+            .subquery("itens")
+        )
+        # Aninhamento dos itens para ordenar o resultado por endereço e item
+        # e retornar o próximo endereço e item com referência ao endereço e item anteriores
+        query = (
+            select(subquery_itens)
+            .where(subquery_itens.c.posicao + subquery_itens.c.item > item_posicao)
+            .order_by(subquery_itens.c.posicao, subquery_itens.c.item)
             .limit(2)
         )
 
@@ -340,20 +540,26 @@ class OrdensSeparacao:
                 )
 
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Falha ao selecionar os itens da ordem de separação {e}",
+                mensagem="Falha ao selecionar os itens da ordem de separação",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         return itens_ordem_separacao
 
     def pausar_separacao(self, ordem_separacao: str) -> dict:
-        cb7 = aliased(ordens_separacao_cb7, name="cb7")
+        """
+        Atualiza a separação para o status de pausa.
+        """
+        cb7 = ordens_separacao_cb7
         query = (
             update(cb7)
             .where(
                 and_(
-                    cb7.c.D_E_L_E_T_ == "",
+                    cb7.c.D_E_L_E_T_ == " ",
                     cb7.c.CB7_FILIAL == "01",
                     cb7.c.CB7_ORDSEP == ordem_separacao,
                 )
@@ -365,9 +571,12 @@ class OrdensSeparacao:
             self.db.commit()
 
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Falha ao pausar separação: {e}",
+                mensagem="Falha ao pausar separação",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         return {"resultado": "sucesso"}
@@ -377,6 +586,9 @@ class OrdensSeparacao:
         usuario_operador: str,
         dados_contagem: RegistraSeparacao,
     ) -> Union[ItemOrdemSeparacao, Response]:
+        """
+        Grava a contagem do item na ordem de separação.
+        """
         self.codigo_operador = self.recupera_operador_usuario(usuario_operador)
 
         cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
@@ -425,9 +637,12 @@ class OrdensSeparacao:
             resultado = self.db.execute(query).fetchone()
 
         except SQLAlchemyError as e:
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Falha recuperando saldo da sepração no registro da contagem {e}",
+                mensagem="Falha recuperando saldo da separação no registro da contagem",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
             )
 
         if resultado:
@@ -435,8 +650,8 @@ class OrdensSeparacao:
             if resultado.REGCB9 > 0:
                 # Caso exista contagem, incrementa a quantidade separada e o status
                 query = (
-                    update(cb9)
-                    .where(cb9.c.R_E_C_N_O_ == resultado.REGCB9)
+                    update(registro_separacao_cb9)
+                    .where(registro_separacao_cb9.c.R_E_C_N_O_ == resultado.REGCB9)
                     .values(
                         CB9_QTESEP=resultado.CB9_QTESEP + quantidade, CB9_STATUS="1"
                     )
@@ -466,29 +681,43 @@ class OrdensSeparacao:
             try:
                 self.db.execute(query)
                 # Subtrai a quantidade separada do item da ordem de separação sem deixar negativo
+                cb8u = itens_ordem_separacao_cb8
                 self.db.execute(
-                    update(cb8)
-                    .where(cb8.c.R_E_C_N_O_ == resultado.REGCB8)
-                    .values(CB8_SALDOS=max(resultado.CB8_SALDOS - quantidade, 0))
+                    update(cb8u)
+                    .where(cb8u.c.R_E_C_N_O_ == resultado.REGCB8)
+                    .values(
+                        CB8_SALDOS=max(
+                            Decimal(str(resultado.CB8_SALDOS))
+                            - Decimal(str(quantidade)),
+                            Decimal(0),
+                        )
+                    )
                 )
                 self.db.commit()
-                if resultado.REGCB9 == 0:
-                    time.sleep(0.25)
+
+                self.atualiza_status_separacao(
+                    ordem_separacao=dados_contagem.ordem_separacao,
+                    usuario_operador=usuario_operador,
+                )
 
             except SQLAlchemyError as e:
                 self.db.rollback()
-                raise HTTPException(
+                log_httpexception_raise(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Falha gravando a contagem {e}",
+                    mensagem="Falha gravando a contagem",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
                 )
 
         else:
             query_plana = query.compile(
                 dialect=self.db.bind.dialect, compile_kwargs={"literal_binds": True}
             )
-            raise HTTPException(
+            log_httpexception_raise(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Item da separação não localizado com a query {query_plana}",
+                mensagem=f"Item da separação não localizado com a query {query_plana}",
+                nivel_log=NivelLog.ERROR,
             )
 
         # Se chegou até aqui, retorna o próximo item da separação
@@ -503,17 +732,89 @@ class OrdensSeparacao:
         else:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+    def atualiza_status_separacao(self, ordem_separacao: str, usuario_operador: str):
+        """
+        Verifica se a ordem de separação está totalmente separada e atualiza seu status para concluída.
+        """
+        itens_com_saldo: int = None
+        cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
+        query = select(func.count(cb8.c.CB8_ORDSEP).label("CNT")).where(
+            and_(
+                cb8.c.D_E_L_E_T_ == " ",
+                cb8.c.CB8_FILIAL == "01",
+                cb8.c.CB8_ORDSEP == ordem_separacao,
+                cb8.c.CB8_SALDOS > 0,
+            )
+        )
+
+        try:
+            itens_com_saldo = self.db.execute(query).scalar()
+
+        except SQLAlchemyError as e:
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Falha recuperando itens com saldo",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
+            )
+
+        if itens_com_saldo is not None and itens_com_saldo == 0:
+            # A ordem de separação está totalmente atendida
+            auth_service = AuthService(db=self.db)
+            auth_service.recupera_dados_usuario(id_usuario=usuario_operador)
+            usuario_erp = (
+                auth_service.dados_usuario.dados_cadastro_recursos.codigo_usuario_protheus
+            )
+            query = (
+                update(ordens_separacao_cb7)
+                .where(
+                    and_(
+                        ordens_separacao_cb7.c.D_E_L_E_T_ == " ",
+                        ordens_separacao_cb7.c.CB7_FILIAL == "01",
+                        ordens_separacao_cb7.c.CB7_ORDSEP == ordem_separacao,
+                    )
+                )
+                .values(
+                    CB7_STATUS="9",
+                    CB7_STATPA="0",
+                    CB7_DTFIMS=date.today().strftime("%Y%m%d"),
+                    CB7_HRFIMS=datetime.now().strftime("%H%M"),
+                    CB7_XUSREN=case(
+                        (ordens_separacao_cb7.c.CB7_XUSREN == " ", usuario_erp),
+                        else_=ordens_separacao_cb7.c.CB7_XUSREN,
+                    ),
+                )
+            )
+
+            try:
+                self.db.execute(query)
+                self.db.commit()
+
+            except SQLAlchemyError as e:
+                self.db.rollback()
+                log_httpexception_raise(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    mensagem="Falha ao atualizar o status da separação",
+                    exc_info=True,
+                    nivel_log=NivelLog.ERROR,
+                    excecao=e,
+                )
+
 
 def recupera_posicoes(
     db: Session, codigo_produto: str, almoxarifado: str, posicao_atual: str
 ) -> List[str]:
+    """
+    Recupera outras possíveis posições de armazenamento do produto, diferentes da posição atual.
+    """
     posicoes: List = None
     z0o = aliased(posicoes_z0o, name="z0o")
     query = (
         select(z0o.c.Z0O_POSICA)
         .where(
             and_(
-                z0o.c.D_E_L_E_T_ == "",
+                z0o.c.D_E_L_E_T_ == " ",
                 z0o.c.Z0O_FILIAL == "01",
                 z0o.c.Z0O_COD == codigo_produto,
                 z0o.c.Z0O_LOCAL == almoxarifado,
@@ -526,9 +827,12 @@ def recupera_posicoes(
         posicoes = [row[0] for row in db.execute(query).fetchall()]
 
     except SQLAlchemyError as e:
-        raise HTTPException(
+        log_httpexception_raise(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Falha na recuperação de posições complementares {e}",
+            mensagem="Falha na recuperação de posições complementares",
+            exc_info=True,
+            nivel_log=NivelLog.ERROR,
+            excecao=e,
         )
 
     return posicoes
@@ -552,8 +856,10 @@ def lista_ordens_separacao(
         return ordens_separacao.lista_ordens_separacao(payload.get("sub"))
 
     else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
         )
 
 
@@ -561,22 +867,109 @@ def lista_ordens_separacao(
     "/separar/{ordem_separacao}",
     summary="Processo de registro da separação de materiais",
 )
-def separar(
-    ordem_separacao: str,
+def separar_ordem(
+    ordem_separacao: str = Path(...),
+    x_cliente_token: str = Header(
+        alias="X-Cliente-Token", title="Chave de identificação do cliente do endpoint"
+    ),
+    payload: dict = Depends(valida_token),
+    db: Session = Depends(get_db),
+) -> List[ItemOrdemSeparacao]:
+    """
+    Endpoint para iniciar o processo de separação a partir da fila.
+    """
+    return separar(
+        ordem_separacao=ordem_separacao,
+        x_cliente_token=x_cliente_token,
+        payload=payload,
+        db=db,
+    )
+
+
+@ordens_separacao_router.post(
+    "/separar/{ordem_separacao}/{item}",
+    summary="Processo de registro da separação de materiais",
+)
+def separar_ordem_item(
+    ordem_separacao: str = Path(...),
+    item: str = Path(...),
     x_cliente_token: str = Header(
         alias="X-Cliente-Token", title="Chave de identificação do cliente"
     ),
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
 ) -> List[ItemOrdemSeparacao]:
+    """
+    Endpoint para dar continuidade ao processo de separação a partir de um item.
+    """
+    return separar(
+        ordem_separacao=ordem_separacao,
+        item=item,
+        x_cliente_token=x_cliente_token,
+        payload=payload,
+        db=db,
+    )
+
+
+@ordens_separacao_router.post(
+    "/pular_item/{ordem_separacao}/{item_anterior}",
+    summary="Pula o item enviado retornando o próximo item",
+)
+def pular_item(
+    ordem_separacao: str = Path(...),
+    item_anterior: str = Path(...),
+    x_cliente_token: str = Header(
+        alias="X-Cliente-Token", title="Chave de identificação do cliente"
+    ),
+    payload: dict = Depends(valida_token),
+    db: Session = Depends(get_db),
+) -> List[ItemOrdemSeparacao]:
+    """
+    Endpoint para pular o item da separação.
+    """
+    return separar(
+        ordem_separacao=ordem_separacao,
+        item_anterior=item_anterior,
+        x_cliente_token=x_cliente_token,
+        payload=payload,
+        db=db,
+    )
+
+
+def separar(
+    ordem_separacao: str,
+    x_cliente_token: str,
+    payload: dict,
+    db: Session,
+    item: Optional[str] = None,
+    item_anterior: Optional[str] = None,
+) -> Union[List[ItemOrdemSeparacao], Response]:
+    """
+    Função para retornar os dados do item para separação.\n
+    Se 'item_anterior' for infomado, busca os dados do próximo item.\n
+    Se 'item' for informado, retorna os dados do próprio item informado.
+    """
     if not valida_chave_coletor(x_cliente_token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
         )
 
     ordens_separacao = OrdensSeparacao(db=db)
-    ordens_separacao.atualiza_operador(ordem_separacao, payload.get("sub"))
-    return ordens_separacao.recupera_itens(ordem_separacao)
+    # Se o item não é nulo, significa que a separação já foi iniciada
+    if not item:
+        ordens_separacao.atualiza_operador(ordem_separacao, payload.get("sub"))
+
+    itens_recuperados = ordens_separacao.recupera_itens(
+        ordem_separacao, item=item, item_anterior=item_anterior
+    )
+
+    if itens_recuperados:
+        return itens_recuperados
+
+    else:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @ordens_separacao_router.post(
@@ -591,9 +984,14 @@ def pausar_separacao(
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
 ) -> dict:
+    """
+    Enpoint para pausar a Ordem de Separação.
+    """
     if not valida_chave_coletor(x_cliente_token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
         )
 
     ordens_separacao = OrdensSeparacao(db=db)
@@ -610,10 +1008,15 @@ def registra_separacao(
     ),
     payload: dict = Depends(valida_token),
     db: Session = Depends(get_db),
-):
+) -> ItemOrdemSeparacao:
+    """
+    Endpoint para gravar os dados da separação coletados.
+    """
     if not valida_chave_coletor(x_cliente_token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Chave de cliente inválida!"
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
         )
 
     ordens_separacao = OrdensSeparacao(db=db)
@@ -624,4 +1027,7 @@ def registra_separacao(
 
 
 def valida_chave_coletor(chave_cliente) -> bool:
+    """
+    Valida se a chave do cliente que identifica o coletor está coerente com a definida no ambiente.
+    """
     return chave_cliente == Environment.CHAVE_COLETOR

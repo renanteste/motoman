@@ -100,6 +100,12 @@ class DadosAutenticacao(BaseModel):
     validade: Optional[datetime] = Field(
         None, description="Data e hora de validade do token."
     )
+    refresh_token: Optional[str] = Field(
+        None, description="Token para fazer a atualização da autenticação."
+    )
+    validade_refresh: Optional[datetime] = Field(
+        None, description="Data e hora de validade do refresh token."
+    )
 
 
 class AuthResponse(BaseModel):

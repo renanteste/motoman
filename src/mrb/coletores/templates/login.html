@@ -44,9 +44,20 @@
             color: white;
         }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
+    <script>
+        // trava o botão Voltar antes de tudo
+        (function () {
+            history.replaceState(null, "", location.href);
+            history.pushState(null, "", location.href);
+            window.addEventListener("popstate", function () {
+                history.pushState(null, "", location.href);
+            });
+        })();
+    </script>
     <h2>Acesso ao Sistema</h2>
 
     {% if erro %}
@@ -72,9 +83,21 @@
         </form>
     </div>
     {% else %}
-    <form method="post" action="/login">
+    <form method="post" action="/login" autocomplete="off">
         <input type="text" name="usuario" placeholder="Usuário" required />
-        <input type="password" name="senha" placeholder="Senha" required />
+        <div style="position: relative; display: inline-block; width: 100%;">
+            <input type="password" id="campo_senha" name="senha" placeholder="Senha" required />
+            <i id="icone_visibilidade" class="fa-solid fa-eye-slash" onclick="alternarSenha()" style="
+                    position: absolute; 
+                    top: 0; 
+                    bottom: 0; 
+                    right: 10px; 
+                    display: flex; 
+                    align-items: center; 
+                    cursor: pointer; 
+                    color: black;
+                    "></i>
+        </div>
         <button type="submit">Entrar</button>
     </form>
     {% endif %}
@@ -94,6 +117,21 @@
         campoUsuario.addEventListener("input", limparErro);
         campoSenha.addEventListener("input", limparErro);
     </script>
+    <script>
+        function alternarSenha() {
+            const campo = document.getElementById("campo_senha");
+            const icone = document.getElementById("icone_visibilidade");
+
+            if (campo.type === "password") {
+                campo.type = "text";
+                icone.classList.replace("fa-eye-slash", "fa-eye");
+            } else {
+                campo.type = "password";
+                icone.classList.replace("fa-eye", "fa-eye-slash");
+            }
+        }
+    </script>
+
 </body>
 
 </html>

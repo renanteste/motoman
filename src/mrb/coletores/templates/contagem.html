@@ -18,6 +18,7 @@
       font-size: 1.1em;
       text-align: center;
       margin-bottom: 0.5rem;
+      display: block;
     }
 
     .info strong {
@@ -27,10 +28,11 @@
     #formulario {
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: stretch;
       gap: 15px;
       margin: 0 auto 20px auto;
-      max-width: 100%;
+      width: 100%;
+      max-width: 400px;
     }
 
     .linha-quantidade {
@@ -42,9 +44,9 @@
 
     .linha-codigo {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 10px;
-      justify-content: center;
+      gap: 5px;
     }
 
     label {
@@ -55,6 +57,7 @@
       padding: 10px;
       font-size: 1.1em;
       box-sizing: border-box;
+      border: 1px solid #000;
       width: 100px;
     }
 
@@ -62,6 +65,7 @@
       padding: 10px;
       font-size: 1.1em;
       box-sizing: border-box;
+      border: 1px solid #000;
       width: 240px;
     }
 
@@ -104,15 +108,48 @@
 </head>
 
 <body>
-  <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
-    <div style="font-size: 1em; color: #9e0303;">Operador:
-      {{ usuario_nome }}
+  <script>
+    // Se a posição já foi lida, retorna para a fila de separação
+    (function () {
+      const ordemSeparacao = "{{ ordem_separacao }}";
+      const itemSeparacao = "{{ item }}"
+      try {
+        const itensLidos = JSON.parse(sessionStorage.getItem("itensLidos") || "[]");
+        if (itensLidos.includes(`${ordemSeparacao}|${itemSeparacao}`)) {
+          window.location.href = "/ordens";
+        }
+      } catch (e) {
+        // Se der erro no JSON, também redireciona por segurança
+        window.location.href = "/ordens";
+      }
+    })();
+  </script>
+
+  {% if erro %}
+  <div
+    style="color: red; background-color: #ffeeee; padding: 10px; text-align: center; font-weight: bold; border: 1px solid red; margin-bottom: 1rem;">
+    {{ erro }}
+  </div>
+  {% endif %}
+
+  <div style="display: inline; justify-content: space-between; align-items: center; padding: 10px;">
+    <div
+      style="display: flex; justify-content: space-between; align-items: center; font-size: 1em; margin-bottom: 1rem;">
+      <div style="color: #9e0303;">Operador: {{ usuario_nome }}</div>
+      <div style="color: #000;">OS: {{ ordem_separacao }}</div>
+    </div>
+    <div class="info">
+      <strong>Item:</strong> {{ item }} &nbsp;&nbsp;&nbsp;
+      <strong>Código:</strong> {{ codigo_produto }}
     </div>
 
-    <div class="info"><strong>Código:</strong> {{ codigo_produto }}</div>
+    <div class="info" style="font-size: 0.8em;">{{ descricao_produto }}</div>
+    {% if agrupador %}
+    <div class="info" style="font-size: 0.8em;">Agrupador: {{ agrupador }}</div>
+    {% endif %}
     <div class="info"><strong>Separar:</strong> {{ saldo_separar }}</div>
 
-    <form id="formulario">
+    <form id="formulario" autocomplete="off">
       <div class="linha-quantidade">
         <label for="campo_quantidade">Separado:</label>
         <input type="number" id="campo_quantidade" name="quantidade" placeholder="Qtd."
@@ -121,7 +158,8 @@
       </div>
 
       <div class="linha-codigo">
-        <input type="text" id="campo_codigo" name="codigo" placeholder="Código" />
+        <input type="text" id="campo_codigo" name="codigo_do_produto" placeholder="Código"
+          style="text-transform: uppercase;" />
         <button type="button" class="btn-separar" onclick="separarItem()">Separar</button>
       </div>
     </form>
@@ -136,62 +174,99 @@
     </div>
 
     <script>
-      async function separarItem() {
-        const codigoItem = document.getElementById("campo_codigo").value.trim();
+      function armazenaItemLido() {
+        // Armazena o item lido para não permitir voltar na página pelo navegador
+        const ordemSeparacao = "{{ ordem_separacao }}";
+        const itemSeparacao = "{{ item }}"
+        const itensLidos = JSON.parse(sessionStorage.getItem("itensLidos") || "[]");
+        itensLidos.push(`${ordemSeparacao}|${itemSeparacao}`);
+        sessionStorage.setItem("itensLidos", JSON.stringify(itensLidos));
+      }
 
-        if (codigoItem !== "{{ codigo_produto | escapejs }}".trim()) {
+      function separarItem() {
+        // Codigo lido ou digitado pelo operador
+        const codigoItem = document.getElementById("campo_codigo").value.trim();
+        if (codigoItem !== "{{ codigo_produto }}".trim()) {
           alert(`Código ${codigoItem} inválido!`);
           return;
         }
 
+        // Conteúdo do campo quantidade
         const quantidade = parseFloat(document.getElementById("campo_quantidade").value);
 
-        const payload = {
-          ordem_separacao: "{{ ordem_separacao | escapejs }}",
-          item: "{{ item | escapejs }}",
-          codigo_produto: "{{ codigo_produto | escapejs }}",
+        // Montar o formulário dinamicamente para enviar as informações ao serviço do frontend
+        document.querySelector("form#registroSeparacao")?.remove();
+        const formularioSeparacao = document.createElement("form");
+        formularioSeparacao.id = "form#registroSeparacao";
+        formularioSeparacao.method = "POST";
+        formularioSeparacao.action = "/grava_separacao";
+
+        const camposFormularioSeparacao = {
+          ordem_separacao: "{{ ordem_separacao }}",
+          item: "{{ item }}",
+          codigo_produto: codigoItem,
+          descricao_produto: "{{ descricao_produto }}",
           quantidade_separada: quantidade,
-          almoxarifado: "{{ almoxarifado | escapejs }}",
-          pedido: "{{ pedido | escapejs }}",
-          sequencia_pedido: "{{ sequencia_pedido | escapejs }}"
+          almoxarifado: "{{ almoxarifado }}",
+          pedido: "{{ pedido }}",
+          sequencia_pedido: "{{ sequencia_pedido }}",
+          endereco_coletado: "{{ endereco_coletado }}"
         };
 
-        try {
-          const response = await fetch("/registra_separacao", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
-          });
-
-          if (response.status === 200) {
-            const itemRetornado = await response.json();
-
-            if (itemRetornado.posicao.trim() === "{{ endereco_coletado | escapejs }}".trim()) {
-              // Atualiza os campos em tela com os dados retornados
-              document.getElementById("campo_codigo").value = "";
-              document.getElementById("campo_quantidade").value = itemRetornado.saldo_separar;
-              document.querySelector(".info:nth-child(2)").innerHTML = "<strong>Código:</strong> " + itemRetornado.codigo_produto;
-              document.querySelector(".info:nth-child(3)").innerHTML = "<strong>Separar:</strong> " + itemRetornado.saldo_separar;
-            } else {
-              alert("Vá até novo endereço");
-            }
-          } else if (response.status === 204) {
-            alert("Fim da Ordem de Separação");
-            window.location.href = "/ordens";
-          } else {
-            mensagem = await response.text();
-            alert(`Erro ${response.status}:\n${mensagem.length > 200 ? mensagem.substring(0, 200) : mensagem}`);
-          }
-        } catch (err) {
-          alert(`Erro na transmissão da contagem: ${err}`)
+        for (const chave in camposFormularioSeparacao) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = chave;
+          input.value = camposFormularioSeparacao[chave];
+          formularioSeparacao.appendChild(input);
         }
+
+        document.body.appendChild(formularioSeparacao);
+
+        armazenaItemLido()
+
+        formularioSeparacao.submit();
       }
 
       function pularItem() {
-        alert("Item pulado. (ação simulada).");
+        if (confirm("Confirma pular o item atual?")) {
+          document.querySelector("form#pularItemSeparacao")?.remove();
+          const formularioPularItemSeparacao = document.createElement("form");
+          formularioPularItemSeparacao.id = "form#pularItemSeparacao";
+          formularioPularItemSeparacao.method = "post";
+          formularioPularItemSeparacao.action = "/pular"
+
+          const camposFormularioPularItensSeparacao = {
+            ordem_separacao: "{{ ordem_separacao }}",
+            item: "{{ item }}",
+            codigo_produto: "{{ codigo_produto }}",
+            descricao_produto: "{{ descricao_produto }}",
+            quantidade_separada: "{{ saldo_separar }}",
+            almoxarifado: "{{ almoxarifado }}",
+            pedido: "{{ pedido }}",
+            sequencia_pedido: "{{ sequencia_pedido }}",
+            endereco_coletado: "{{ endereco_coletado }}"
+          };
+
+          for (const chave in camposFormularioPularItensSeparacao) {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = chave;
+            input.value = camposFormularioPularItensSeparacao[chave];
+            formularioPularItemSeparacao.appendChild(input);
+          }
+
+          document.body.appendChild(formularioPularItemSeparacao);
+
+          armazenaItemLido();
+
+          formularioPularItemSeparacao.submit()
+        }
       }
+
+      document.getElementById("campo_codigo").addEventListener("input", function () {
+        this.value = this.value.toUpperCase();
+      });
 
       const html5QrCode = new Html5Qrcode("reader");
 
@@ -199,11 +274,13 @@
         { facingMode: "environment" },
         { fps: 30, qrbox: 250 },
         (decodedText, decodedResult) => {
-          if (decodedText.trim() === "{{ codigo_produto | escapejs }}".trim()) {
-            document.getElementById("campo_codigo").value = decodedText;
+          const codigo_lido = decodedText.includes("|") ? decodedText.split("|")[0] : decodedText;
+          if (codigo_lido.trim() === "{{ codigo_produto }}".trim()) {
+            html5QrCode.stop();
+            document.getElementById("campo_codigo").value = codigo_lido;
             separarItem();
           } else {
-            alert(`Código ${decodedText} inválido!`);
+            alert(`Código ${codigo_lido} inválido!`);
           }
         },
         error => {
@@ -211,6 +288,13 @@
         }
       ).catch(err => {
         alert("Erro ao acessar a câmera: " + err);
+      });
+    </script>
+    <script>
+      window.addEventListener("pageshow", function (event) {
+        if (event.persisted) {
+          console.log("Voltou com backward (bfcache)");
+        }
       });
     </script>
 </body>
