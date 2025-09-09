@@ -1,4 +1,4 @@
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 
 def hdec_to_hhmm(hora_decimal: Decimal) -> str | None:
@@ -25,7 +25,9 @@ def hhmm_to_hdec(hora_minuto: str) -> Decimal | None:
         if len(partes) == 2:
             horas = int(partes[0])
             minutos = int(partes[1])
-            hora_decimal = Decimal(horas) + (Decimal(minutos) / Decimal(60))
+            hora_decimal = (Decimal(horas) + (Decimal(minutos) / Decimal(60))).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
 
         else:
             hora_decimal = None
