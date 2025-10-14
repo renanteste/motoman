@@ -1,7 +1,7 @@
 CREATE TABLE extrato_horas_extras (
 	id INTEGER IDENTITY(1,1) PRIMARY KEY,
 	matricula CHAR(6),
-	dia DATE,
+	dia DATETIME,
 	carga_horaria_dia DECIMAL(4,2),
 	tipo_registro TINYINT,
 	quantidade_horas_apontadas DECIMAL(4,2),

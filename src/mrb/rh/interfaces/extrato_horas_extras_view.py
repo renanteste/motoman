@@ -20,7 +20,7 @@ from src.mrb.common.interfaces.paginacao import Paginacao
 from src.mrb.common.interfaces.botoes_menu_principal import BotoesMenuPrincipal
 from src.mrb.common.interfaces.navigation_bar import NavigationBar
 
-TIPO_MOVIMENTO = {1: "Crédito", 2: "Débito", 3: "Encerramento"}
+TIPO_MOVIMENTO = {1: "Crédito", 2: "Débito", 3: "Encerramento", 4: ""}
 
 
 class ExtratoHorasExtras:
@@ -112,10 +112,10 @@ class ExtratoHorasExtras:
                 ft.DataColumn(ft.Text("Nome", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Data", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Carga Horária", weight=ft.FontWeight.BOLD)),
-                ft.DataColumn(ft.Text("Tipo Movimento", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Hrs Apontadas", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Hrs Aprovadas", weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Hrs Computadas", weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Tipo Movimento", weight=ft.FontWeight.BOLD)), 
             ],
             rows=[],
         )
@@ -205,9 +205,7 @@ class ExtratoHorasExtras:
                             ft.DataCell(
                                 ft.Text(hdec_to_hhmm(movimento.carga_horaria_dia))
                             ),
-                            ft.DataCell(
-                                ft.Text(TIPO_MOVIMENTO[movimento.tipo_registro])
-                            ),
+            
                             ft.DataCell(
                                 ft.Text(
                                     hdec_to_hhmm(movimento.quantidade_horas_apontadas)
@@ -223,6 +221,9 @@ class ExtratoHorasExtras:
                                     hdec_to_hhmm(movimento.quantidade_horas_computadas)
                                 )
                             ),
+                            ft.DataCell(
+                                ft.Text(TIPO_MOVIMENTO[movimento.tipo_registro])
+                            ),    
                         ],
                     )
                 )
