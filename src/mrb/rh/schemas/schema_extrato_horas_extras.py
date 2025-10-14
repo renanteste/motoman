@@ -26,12 +26,12 @@ class MovimentoExtratoHorasExtras(BaseModel):
         examples=[2.5],
         description="Quantidade de horas que compõem a carga horária para a data do movimento.",
     )
-    tipo_registro: Literal[1, 2, 3] = Field(
+    tipo_registro: Literal[1, 2, 3, 4] = Field(
         ...,
-        examples=[1, 2, 3],
+        examples=[1, 2, 3, 4],
         description="""
                     Tipo do movimento no extrato.\n
-                    1: Crédito, 2: Débito, 3: Encerramento de período""",
+                    1: Crédito, 2: Débito, 3: Encerramento de período,4: Vazio""",
     )
     quantidade_horas_apontadas: Decimal = Field(
         ...,

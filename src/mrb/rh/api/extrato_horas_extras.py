@@ -442,7 +442,7 @@ class CalculaExtratoHorasExtras:
                 registros_para_extrato.append(MovimentosHorasExtras())
                 registros_para_extrato[-1].matricula = linha.AE8_CODFUN
                 registros_para_extrato[-1].dia = linha.ZZU_DATA
-                registros_para_extrato[-1].tipo_registro = 1  # Registro de crédito
+                
                 registros_para_extrato[-1].carga_horaria_dia = self.carga_horaria_dia(
                     linha.ZZU_DATA
                 )
@@ -451,7 +451,7 @@ class CalculaExtratoHorasExtras:
                 # Pega a quantidade de horas aprovadas dos registros recuperados
                 registros_para_extrato[-1].quantidade_horas_aprovadas = 0
                 for solicitacao in resultado_solicitacoes_aprovadas:
-                    if solicitacao.data_planejada == registros_para_extrato[-1].dia:
+                    if solicitacao.data_planejada.date() == registros_para_extrato[-1].dia:
                         registros_para_extrato[-1].quantidade_horas_aprovadas = (
                             solicitacao.total_horas_planejada
                         )
@@ -459,9 +459,16 @@ class CalculaExtratoHorasExtras:
                 # Se a quantidade de horas aprovadas for menor que as horas apontadadas, vale as aprovadas
                 registros_para_extrato[-1].quantidade_horas_computadas = min(
                     registros_para_extrato[-1].quantidade_horas_aprovadas,
-                    registros_para_extrato[-1].quantidade_horas_apontadas,
+                    (registros_para_extrato[-1].quantidade_horas_apontadas - registros_para_extrato[-1].carga_horaria_dia),
                 )
-
+                
+                if registros_para_extrato[-1].quantidade_horas_computadas > 0:
+                    registros_para_extrato[-1].tipo_registro = 1  # Registro de crédito
+                elif registros_para_extrato[-1].quantidade_horas_computadas == 0:
+                    registros_para_extrato[-1].tipo_registro = 4  # Registro vazio
+                else:
+                    registros_para_extrato[-1].tipo_registro = 2  # Registro de débito
+                    
             for linha in resultado_consumo_bh:
                 registros_para_extrato.append(MovimentosHorasExtras())
                 registros_para_extrato[-1].matricula = linha.PC_MAT
