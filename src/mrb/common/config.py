@@ -20,10 +20,10 @@ class EmailConfiguration:
 class ApiConfiguration:
     class auth:
         URL = "127.0.0.1"
-        PORT = 8000
+        PORT = 63002
 
     class rh:
-        HOST = "0.0.0.0"
+        HOST = "0.0.0.0"    
         PORT = 8000
         SERVER = "127.0.0.1"
 
@@ -48,7 +48,7 @@ class SqlConfiguration:
     SERVER = "172.22.8.25"
     USER = "sa"
     PASSWORD = "TW90b0B6dDhodGdkYQ=="
-    DATABASE = "ZT8HTG_DEV"
+    DATABASE = "ZT8HTG_HOM"
 
 
 class Environment:
@@ -62,6 +62,6 @@ class Environment:
     SERVER_IP = "127.0.0.1"
     CAMINHO_RELATORIOS = os.path.join("src", "mrb", "common", "temp", "relatorios")
     # Chave compartilhada com a aplicação do coletor utilizada na autenticação
-    CHAVE_COLETOR = "Q8%pA2!kZzL7$wMEr3#vNgTb@CHAVE_COLETOR"
+    CHAVE_COLETOR = "Q8%pA2!kZzL7$wMEr3#vNgTb@CHAVE_COLETOR"#coletores01
     # URL do serviço REST do Protheus
-    URL_REST_PROTHEUS = "http://172.22.8.25:3001/rest"
+    URL_REST_PROTHEUS = "http://172.22.8.25:3003/rest"

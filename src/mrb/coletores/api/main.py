@@ -769,8 +769,141 @@ async def pausar(request: Request, ordem_separacao: str = Form(...)):
                 "usuario_nome": prepara_response.nome_usuario,
             },
         )
+@app.get("/itens_ordem_separacao/{ordem_separacao}", include_in_schema=False)
+async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Path(...)):
+    """
+    Endpoint para exibir todos os itens de uma ordem de separação em uma tela específica.
+    """
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
 
+    try:
+        # Faz a requisição para o backend para obter todos os itens da ordem de separação
+        response = prepara_response.exec_request(
+            url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/itens_ordem_separacao/{ordem_separacao}",
+            metodo="get",
+            headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
+        )
 
+        if response.status_code == status.HTTP_200_OK:
+            itens = response.json()
+            
+            # Processa os dados para a exibição na tela
+            itens_processados = []
+            itens_separados = 0
+            itens_pendentes = 0
+            
+            for item in itens:
+                try:
+                    # Converte os campos numéricos para float de forma segura
+                    saldo_separar = item.get("saldo_separar", "0")
+                    quantidade_original = item.get("quantidade_original", "0")
+                    
+                    # Usa a função quantidade_float para conversão segura
+                    saldo_separar_float = quantidade_float(saldo_separar)
+                    quantidade_original_float = quantidade_float(quantidade_original)
+                    
+                    # Determina o status baseado no saldo
+                    if saldo_separar_float == 0:
+                        status_display = '<span style="color: green;">✓ Separado</span>'
+                        itens_separados += 1
+                    else:
+                        status_display = '<span style="color: orange;">⏳ Pendente</span>'
+                        itens_pendentes += 1
+                    
+                    # Cria uma cópia do item com os valores processados
+                    item_processado = {
+                        "item": item.get("item"),
+                        "codigo_produto": item.get("codigo_produto"),
+                        "descricao_produto": item.get("descricao_produto"),
+                        "posicao": item.get("posicao"),
+                        "quantidade_original": item.get("quantidade_original"),
+                        "saldo_separar": item.get("saldo_separar"),
+                        "quantidade_original_float": quantidade_original_float,
+                        "saldo_separar_float": saldo_separar_float,
+                        "status_display": status_display
+                    }
+                    
+                    # Adiciona campos opcionais se existirem
+                    if "agrupador" in item:
+                        item_processado["agrupador"] = item.get("agrupador")
+                    if "pedido" in item:
+                        item_processado["pedido"] = item.get("pedido")
+                    if "sequencia_pedido" in item:
+                        item_processado["sequencia_pedido"] = item.get("sequencia_pedido")
+                    if "almoxarifado" in item:
+                        item_processado["almoxarifado"] = item.get("almoxarifado")
+                    
+                    itens_processados.append(item_processado)
+                    
+                except Exception as e:
+                    # Log do erro e continua processando outros itens
+                    print(f"Erro processando item {item.get('item', 'N/A')}: {e}")
+                    continue
+
+            total_itens = len(itens_processados)
+            
+            # Calcula o percentual
+            percentual = round((itens_separados / total_itens * 100), 1) if total_itens > 0 else 0
+
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "itens_ordem_separacao.html",
+                    {
+                        "request": request,
+                        "itens": itens_processados,
+                        "ordem_separacao": ordem_separacao,
+                        "total_itens": total_itens,
+                        "itens_pendentes": itens_pendentes,
+                        "itens_separados": itens_separados,
+                        "percentual": percentual, 
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                )
+            )
+
+        elif response.status_code == status.HTTP_404_NOT_FOUND:
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "ordens.html",
+                    {
+                        "request": request,
+                        "erro": f"Ordem de separação {ordem_separacao} não encontrada ou sem itens",
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                )
+            )
+
+        elif response.status_code == status.HTTP_401_UNAUTHORIZED:
+            return await logout(
+                mensagem=response.json().get("detail", "Não autorizado!")
+            )
+
+        else:
+            return prepara_response.retorna_response(
+                templates.TemplateResponse(
+                    "ordens.html",
+                    {
+                        "request": request,
+                        "erro": f"Erro ao carregar itens: {response.status_code} - {response.json().get('detail', 'Erro desconhecido')}",
+                        "usuario_nome": prepara_response.nome_usuario,
+                    },
+                )
+            )
+
+    except requests.RequestException as e:
+        return templates.TemplateResponse(
+            "ordens.html",
+            {
+                "request": request,
+                "erro": f"Falha ao conectar com o serviço: {e}",
+                "usuario_nome": prepara_response.nome_usuario,
+            },
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    
+    
 if __name__ == "__main__":
     argumentos_uvicorn = {
         "app": "main:app",

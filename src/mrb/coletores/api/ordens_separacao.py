@@ -801,6 +801,128 @@ class OrdensSeparacao:
                     excecao=e,
                 )
 
+    def obter_todos_itens_os(self, ordem_separacao: str) -> List[ItemOrdemSeparacao]:
+        """
+        Recupera TODOS os itens da ordem de separação para exibição na tela intermediária.
+        """
+        itens_ordem_separacao: List[ItemOrdemSeparacao] = []
+        cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
+        cb7 = aliased(ordens_separacao_cb7, name="cb7")
+        z0o = aliased(posicoes_z0o, name="z0o")
+        sb1 = aliased(produtos_sb1, name="sb1")
+        afa = aliased(insumos_projetos_afa, name="afa")
+
+        query = (
+            select(
+                cb8.c.CB8_ITEM.label("item"),
+                cb8.c.CB8_PEDIDO.label("pedido"),
+                cb8.c.CB8_PROD.label("codigo_produto"),
+                func.trim(sb1.c.B1_DESC).label("descricao_produto"),
+                cb8.c.CB8_LOCAL.label("almoxarifado"),
+                func.coalesce(
+                    z0o.c.Z0O_POSICA,
+                    cast(cast(cb8.c.CB8_LOCAL, Integer), String) + literal_column("'-ALMOX'")
+                ).label("posicao"),
+                cast(cb8.c.CB8_QTDORI, Numeric(10, 2)).label("quantidade_original"),
+                cast(cb8.c.CB8_SALDOS, Numeric(10, 2)).label("saldo_separar"),
+                cb8.c.CB8_SEQUEN.label("sequencia_pedido"),
+                afa.c.AFA_XAGRUP.label("agrupador"),
+                cb7.c.CB7_ORIGEM.label("origem"),
+                case(
+                    (cb8.c.CB8_SALDOS == 0, "Separado"),
+                    (cb8.c.CB8_SALDOS > 0, "Pendente"),
+                    else_="Indefinido"
+                ).label("status_item")
+            )
+            .select_from(
+                cb8.join(
+                    sb1,
+                    and_(
+                        sb1.c.D_E_L_E_T_ == " ",
+                        sb1.c.B1_FILIAL == "01",
+                        sb1.c.B1_COD == cb8.c.CB8_PROD,
+                    ),
+                )
+                .join(
+                    cb7,
+                    and_(
+                        cb7.c.D_E_L_E_T_ == " ",
+                        cb7.c.CB7_FILIAL == "01",
+                        cb7.c.CB7_ORDSEP == cb8.c.CB8_ORDSEP,
+                    ),
+                )
+                .outerjoin(
+                    z0o,
+                    and_(
+                        z0o.c.D_E_L_E_T_ == " ",
+                        z0o.c.Z0O_FILIAL == "01",
+                        z0o.c.Z0O_COD == cb8.c.CB8_PROD,
+                        z0o.c.Z0O_LOCAL == cb8.c.CB8_LOCAL,
+                    ),
+                )
+                .outerjoin(
+                    afa,
+                    and_(
+                        afa.c.D_E_L_E_T_ == " ",
+                        afa.c.AFA_FILIAL == "01",
+                        afa.c.AFA_PROJET == cb8.c.CB8_XPROJE,
+                        afa.c.AFA_REVISA >= " ",
+                        afa.c.AFA_TAREFA == cb8.c.CB8_XTAREF,
+                        afa.c.AFA_ITEM == cb8.c.CB8_XITTAR,
+                        afa.c.AFA_PRODUT == cb8.c.CB8_PROD,
+                        afa.c.AFA_XPROD == cb8.c.CB8_XPROD,
+                    ),
+                )
+            )
+            .where(
+                and_(
+                    cb8.c.D_E_L_E_T_ == " ",
+                    cb8.c.CB8_FILIAL == "01",
+                    cb8.c.CB8_ORDSEP == ordem_separacao,
+                    cb8.c.CB8_ITEM >= " ",
+                    cb8.c.CB8_SEQUEN >= " ",
+                    cb8.c.CB8_PROD >= " ",
+                )
+            )
+            .order_by(
+                func.coalesce(z0o.c.Z0O_POSICA, cb8.c.CB8_LOCAL),
+                cb8.c.CB8_ITEM
+            )
+        )
+
+        try:
+            resultado = self.db.execute(query).mappings().all()
+
+            for row in resultado:
+                # Para cada item, verifica se há posições alternativas
+                if row["posicao"] and row["posicao"] != f"{row['almoxarifado']}-ALMOX":
+                    enderecos_alternativos = recupera_posicoes(
+                        db=self.db,
+                        codigo_produto=row["codigo_produto"],
+                        almoxarifado=row["almoxarifado"],
+                        posicao_atual=row["posicao"],
+                    )
+                else:
+                    enderecos_alternativos = None
+
+                itens_ordem_separacao.append(
+                    ItemOrdemSeparacao(
+                        **row, 
+                        enderecos_alternativos=enderecos_alternativos,
+                        total_posicoes=1 if not enderecos_alternativos else len(enderecos_alternativos) + 1
+                    )
+                )
+
+            return itens_ordem_separacao
+
+        except SQLAlchemyError as e:
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem=f"Falha ao selecionar os itens da ordem de separação {ordem_separacao}",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
+            )
 
 def recupera_posicoes(
     db: Session, codigo_produto: str, almoxarifado: str, posicao_atual: str
@@ -1031,3 +1153,41 @@ def valida_chave_coletor(chave_cliente) -> bool:
     Valida se a chave do cliente que identifica o coletor está coerente com a definida no ambiente.
     """
     return chave_cliente == Environment.CHAVE_COLETOR
+
+
+
+
+@ordens_separacao_router.get(
+    "/itens_ordem_separacao/{ordem_separacao}",
+    summary="Lista todos os itens de uma ordem de separação",
+    response_model=List[ItemOrdemSeparacao]
+)
+def obter_itens_ordem_separacao(
+    ordem_separacao: str = Path(..., description="Número da ordem de separação"),
+    x_cliente_token: str = Header(
+        alias="X-Cliente-Token", title="Chave de identificação do cliente"
+    ),
+    payload: dict = Depends(valida_token),
+    db: Session = Depends(get_db),
+) -> List[ItemOrdemSeparacao]:
+    """
+    Endpoint para obter TODOS os itens de uma ordem de separação específica.
+    Ideal para exibição em telas de consulta.
+    """
+    if not valida_chave_coletor(x_cliente_token):
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
+        )
+
+    ordens_separacao = OrdensSeparacao(db=db)
+    itens = ordens_separacao.obter_todos_itens_os(ordem_separacao)
+    
+    if not itens:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nenhum item encontrado para a ordem de separação {ordem_separacao}"
+        )
+    
+    return itens

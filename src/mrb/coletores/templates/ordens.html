@@ -152,13 +152,11 @@
 
   <script>
     function confirmarInicio(ordem_separacao) {
-      if (confirm("Deseja iniciar a separação da ordem " + ordem_separacao + "?")) {
-        // Limpa os itens lidos para iniciar novo ciclo
-        sessionStorage.setItem("enderecosLidos", JSON.stringify([]));
-        sessionStorage.setItem("itensLidos", JSON.stringify([]));
-        window.location.href = "/inicia_separacao/" + encodeURIComponent(ordem_separacao);
+      if (confirm("Deseja visualizar os itens da ordem " + ordem_separacao + " antes de iniciar a separação?")) {
+          // Vai para a tela intermediária de itens
+          window.location.href = "/itens_ordem_separacao/" + encodeURIComponent(ordem_separacao);
       }
-    }
+}
   </script>
   <script>
     setInterval(() => {

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ordem de Separação de Projeto {{ ordem_separacao }}</title>
+    <style>
+        /* Mantenha todo o CSS igual */
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 1rem;
+            background-color: #f4f4f4;
+        }
+
+        .header {
+            background: white;
+            padding: 1rem;
+            border-radius: 6px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .stats {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 0.75rem;
+            border-radius: 4px;
+            text-align: center;
+            flex: 1;
+        }
+
+        .stat-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            display: block;
+        }
+
+        .progress-bar {
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s ease;
+        }
+
+        .botoes {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            flex: 1;
+            text-decoration: none;
+            text-align: center;
+        }
+
+        .btn-voltar {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-continuar {
+            background: #007bff;
+            color: white;
+        }
+
+        .lista-itens {
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .item {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item:last-child {
+            border-bottom: none;
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-codigo {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .item-descricao {
+            color: #666;
+            font-size: 0.9em;
+            margin: 0.25rem 0;
+        }
+
+        .item-detalhes {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8em;
+            color: #888;
+        }
+
+        .item-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .status-pendente {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-separado {
+            background: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-top">
+            <div>
+                <h2 style="margin: 0;">Itens da Ordem de Separação</h2>
+                <div style="color: #666; font-size: 1.1em;">OS: <strong>{{ ordem_separacao }}</strong></div>
+            </div>
+            <div style="text-align: right;">
+                <div style="color: #9e0303;">Operador: {{ usuario_nome }}</div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <span class="stat-number">{{ total_itens }}</span>
+                Total de Itens
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" style="color: #28a745;">{{ itens_separados }}</span>
+                Separados
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" style="color: #ffc107;">{{ itens_pendentes }}</span>
+                Pendentes
+            </div>
+        </div>
+
+        <div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Progresso da Separação</span>
+                <span><strong>{{ percentual }}%</strong></span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ percentual }}%;"></div>
+            </div>
+        </div>
+
+        <div class="botoes">
+            <a href="/ordens" class="btn btn-voltar">← Voltar</a>
+            <a href="/inicia_separacao/{{ ordem_separacao }}" class="btn btn-continuar">▶ Continuar</a>
+        </div>
+    </div>
+
+    <div class="lista-itens">
+        {% for item in itens %}
+        <div class="item">
+            <div class="item-info">
+                <div class="item-codigo">{{ item.codigo_produto }}</div>
+                <div class="item-descricao">{{ item.descricao_produto }}</div>
+                <div class="item-detalhes">
+                    <span><strong>Item:</strong> {{ item.item }}</span>
+                    <span><strong>Posição:</strong> {{ item.posicao }}</span>
+                    <span><strong>Qtd:</strong> {{ "%.2f"|format(item.quantidade_original_float) }}</span>
+                    <span><strong>Saldo:</strong> {{ "%.2f"|format(item.saldo_separar_float) }}</span>
+                </div>
+            </div>
+            <div class="item-status {% if item.saldo_separar_float == 0 %}status-separado{% else %}status-pendente{% endif %}">
+                {% if item.saldo_separar_float == 0 %}✓ Separado{% else %}⏳ Pendente{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        // Atualiza a página a cada 30 segundos para mostrar progresso
+        setInterval(() => {
+            window.location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>
