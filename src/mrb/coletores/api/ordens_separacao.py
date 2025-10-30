@@ -808,7 +808,6 @@ class OrdensSeparacao:
         itens_ordem_separacao: List[ItemOrdemSeparacao] = []
         cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
         cb7 = aliased(ordens_separacao_cb7, name="cb7")
-        z0o = aliased(posicoes_z0o, name="z0o")
         sb1 = aliased(produtos_sb1, name="sb1")
         afa = aliased(insumos_projetos_afa, name="afa")
 
@@ -819,10 +818,8 @@ class OrdensSeparacao:
                 cb8.c.CB8_PROD.label("codigo_produto"),
                 func.trim(sb1.c.B1_DESC).label("descricao_produto"),
                 cb8.c.CB8_LOCAL.label("almoxarifado"),
-                func.coalesce(
-                    z0o.c.Z0O_POSICA,
-                    cast(cast(cb8.c.CB8_LOCAL, Integer), String) + literal_column("'-ALMOX'")
-                ).label("posicao"),
+                # Remove a referência ao z0o e usa apenas o almoxarifado como posição padrão
+                (cast(cb8.c.CB8_LOCAL, String) + literal_column("'-ALMOX'")).label("posicao"),
                 cast(cb8.c.CB8_QTDORI, Numeric(10, 2)).label("quantidade_original"),
                 cast(cb8.c.CB8_SALDOS, Numeric(10, 2)).label("saldo_separar"),
                 cb8.c.CB8_SEQUEN.label("sequencia_pedido"),
@@ -852,15 +849,6 @@ class OrdensSeparacao:
                     ),
                 )
                 .outerjoin(
-                    z0o,
-                    and_(
-                        z0o.c.D_E_L_E_T_ == " ",
-                        z0o.c.Z0O_FILIAL == "01",
-                        z0o.c.Z0O_COD == cb8.c.CB8_PROD,
-                        z0o.c.Z0O_LOCAL == cb8.c.CB8_LOCAL,
-                    ),
-                )
-                .outerjoin(
                     afa,
                     and_(
                         afa.c.D_E_L_E_T_ == " ",
@@ -880,36 +868,43 @@ class OrdensSeparacao:
                     cb8.c.CB8_FILIAL == "01",
                     cb8.c.CB8_ORDSEP == ordem_separacao,
                     cb8.c.CB8_ITEM >= " ",
-                    cb8.c.CB8_SEQUEN >= " ",
                     cb8.c.CB8_PROD >= " ",
+                    # REMOVA ESTA LINHA: cb8.c.CB8_SEQUEN >= " ",
                 )
             )
-            .order_by(
-                func.coalesce(z0o.c.Z0O_POSICA, cb8.c.CB8_LOCAL),
-                cb8.c.CB8_ITEM
-            )
+            .order_by(cb8.c.CB8_ITEM)
         )
 
         try:
             resultado = self.db.execute(query).mappings().all()
 
             for row in resultado:
-                # Para cada item, verifica se há posições alternativas
-                if row["posicao"] and row["posicao"] != f"{row['almoxarifado']}-ALMOX":
-                    enderecos_alternativos = recupera_posicoes(
-                        db=self.db,
-                        codigo_produto=row["codigo_produto"],
-                        almoxarifado=row["almoxarifado"],
-                        posicao_atual=row["posicao"],
-                    )
-                else:
-                    enderecos_alternativos = None
+                # Para cada item, busca as posições (incluindo a principal)
+                posicoes = recupera_posicoes(
+                    db=self.db,
+                    codigo_produto=row["codigo_produto"],
+                    almoxarifado=row["almoxarifado"],
+                    posicao_atual=None,  # Não temos mais posição atual do z0o
+                )
+                
+                # Define a posição principal (primeira da lista ou almoxarifado como fallback)
+                posicao_principal = row["almoxarifado"] + "-ALMOX"
+                enderecos_alternativos = None
+                
+                if posicoes:
+                    posicao_principal = posicoes[0]  # Primeira posição é a principal
+                    if len(posicoes) > 1:
+                        enderecos_alternativos = posicoes[1:]  # Restante são alternativas
+
+                # Atualiza a posição no row
+                row_dict = dict(row)
+                row_dict["posicao"] = posicao_principal
 
                 itens_ordem_separacao.append(
                     ItemOrdemSeparacao(
-                        **row, 
+                        **row_dict, 
                         enderecos_alternativos=enderecos_alternativos,
-                        total_posicoes=1 if not enderecos_alternativos else len(enderecos_alternativos) + 1
+                        total_posicoes=1 if not enderecos_alternativos else len(posicoes)
                     )
                 )
 
@@ -923,6 +918,7 @@ class OrdensSeparacao:
                 nivel_log=NivelLog.ERROR,
                 excecao=e,
             )
+
 
 def recupera_posicoes(
     db: Session, codigo_produto: str, almoxarifado: str, posicao_atual: str

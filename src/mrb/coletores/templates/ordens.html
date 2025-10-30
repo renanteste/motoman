@@ -129,7 +129,7 @@
   {% endif %}
 
   {% for ordem in ordens%}
-  <div class="ordem" onclick="confirmarInicio('{{ ordem.ordem_separacao }}')">
+  <div class="ordem" onclick="visualizarItens('{{ ordem.ordem_separacao }}')">
     <div class="linha" style="display: flex; justify-content: space-between;">
       <span><strong>Número:</strong> {{ ordem.ordem_separacao }}</span>
       {{ ordem.legenda_prioridade | safe }}
@@ -151,13 +151,12 @@
   {% endfor %}
 
   <script>
-    function confirmarInicio(ordem_separacao) {
-      if (confirm("Deseja visualizar os itens da ordem " + ordem_separacao + " antes de iniciar a separação?")) {
-          // Vai para a tela intermediária de itens
-          window.location.href = "/itens_ordem_separacao/" + encodeURIComponent(ordem_separacao);
-      }
-}
+    function visualizarItens(ordem_separacao) {
+      // Vai direto para a tela de itens sem confirmação
+      window.location.href = "/itens_ordem_separacao/" + encodeURIComponent(ordem_separacao);
+    }
   </script>
+  
   <script>
     setInterval(() => {
       window.location.reload();

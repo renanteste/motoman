@@ -187,7 +187,7 @@
 
         <div class="botoes">
             <a href="/ordens" class="btn btn-voltar">← Voltar</a>
-            <a href="/inicia_separacao/{{ ordem_separacao }}" class="btn btn-continuar">▶ Continuar</a>
+            <button onclick="iniciarSeparacao('{{ ordem_separacao }}')" class="btn btn-continuar">▶ Continuar</button>
         </div>
     </div>
 
@@ -210,7 +210,17 @@
         </div>
         {% endfor %}
     </div>
+    <script>
+        function iniciarSeparacao(ordem) {
+           
+            sessionStorage.setItem("enderecosLidos", JSON.stringify([]));
+            sessionStorage.setItem("itensLidos", JSON.stringify([]));
 
+            // Redireciona para o endpoint que inicia a separação (mantém o mesmo fluxo)
+            window.location.href = "/inicia_separacao/" + encodeURIComponent(ordem);
+            
+        }
+        </script>
     <script>
         // Atualiza a página a cada 30 segundos para mostrar progresso
         setInterval(() => {
