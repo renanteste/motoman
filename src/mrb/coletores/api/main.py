@@ -680,19 +680,31 @@ async def contagem(
     if not prepara_response.valida_tokens():
         return await logout(mensagem="Token de acesso inválido / expirado!")
 
+    # ✅ Função de proteção local
+    def safe_quote(valor):
+        """Evita erro de quote_from_bytes() expected bytes"""
+        if valor is None:
+            return ""
+        if isinstance(valor, (int, float)):
+            valor = str(valor)
+        if not isinstance(valor, str):
+            valor = str(valor)
+        return quote(valor)
+
     try:
+        # Montagem segura da URL com quote em todos os parâmetros
         url = (
             f"/contagem_view"
-            + f"?ordem_separacao={quote(ordem_separacao)}"
-            + f"&item={quote(item)}"
-            + f"&codigo_produto={quote(codigo_produto)}"
-            + f"&descricao_produto={quote(descricao_produto)}"
-            + f"&saldo_separar={quote(saldo_separar)}"
-            + f"&almoxarifado={quote(almoxarifado)}"
-            + f"&pedido={quote(pedido)}"
-            + f"&sequencia_pedido={quote(sequencia_pedido)}"
-            + f"&endereco_coletado={quote(endereco_coletado)}"
-            + f"&agrupador={quote(agrupador)}"
+            + f"?ordem_separacao={safe_quote(ordem_separacao)}"
+            + f"&item={safe_quote(item)}"
+            + f"&codigo_produto={safe_quote(codigo_produto)}"
+            + f"&descricao_produto={safe_quote(descricao_produto)}"
+            + f"&saldo_separar={safe_quote(saldo_separar)}"
+            + f"&almoxarifado={safe_quote(almoxarifado)}"
+            + f"&pedido={safe_quote(pedido)}"
+            + f"&sequencia_pedido={safe_quote(sequencia_pedido)}"
+            + f"&endereco_coletado={safe_quote(endereco_coletado)}"
+            + f"&agrupador={safe_quote(agrupador)}"
         )
 
         return prepara_response.retorna_response(
@@ -925,3 +937,13 @@ if __name__ == "__main__":
         )
 
     uvicorn.run(**argumentos_uvicorn)
+
+    def safe_quote(valor):
+        """Garante que o valor é string antes de aplicar quote()."""
+        if valor is None:
+            return ""
+        if isinstance(valor, (int, float)):
+            valor = str(valor)
+        if not isinstance(valor, str):
+            valor = str(valor)
+        return quote(valor)

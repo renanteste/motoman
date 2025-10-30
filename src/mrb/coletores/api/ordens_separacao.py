@@ -869,7 +869,7 @@ class OrdensSeparacao:
                     cb8.c.CB8_ORDSEP == ordem_separacao,
                     cb8.c.CB8_ITEM >= " ",
                     cb8.c.CB8_PROD >= " ",
-                    # REMOVA ESTA LINHA: cb8.c.CB8_SEQUEN >= " ",
+                    cb8.c.CB8_SEQUEN >= " ",
                 )
             )
             .order_by(cb8.c.CB8_ITEM)
