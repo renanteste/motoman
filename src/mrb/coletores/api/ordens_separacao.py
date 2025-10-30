@@ -900,6 +900,8 @@ class OrdensSeparacao:
                 row_dict = dict(row)
                 row_dict["posicao"] = posicao_principal
 
+                #print(f"DEBUG origem={row.get('origem')} item={row['item']}")
+
                 itens_ordem_separacao.append(
                     ItemOrdemSeparacao(
                         **row_dict, 

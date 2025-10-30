@@ -153,8 +153,16 @@
         <div class="header-top">
             <div>
                 <h2 style="margin: 0;">Itens da Ordem de Separação</h2>
-                <div style="color: #666; font-size: 1.1em;">OS: <strong>{{ ordem_separacao }}</strong></div>
-            </div>
+                <div style="color: #666; font-size: 1.1em;">
+                    OS: <strong>{{ ordem_separacao }}</strong>
+                    {% if origem == "5" %}
+                    <span style="color:#007bff;">(Projeto)</span>
+                    {% else %}
+                    <span style="color:#28a745;">(Estoque)</span>
+                    {% endif %}
+                </div>
+                </div>
+
             <div style="text-align: right;">
                 <div style="color: #9e0303;">Operador: {{ usuario_nome }}</div>
             </div>
@@ -200,7 +208,9 @@
                 <div class="item-detalhes">
                     <span><strong>Item:</strong> {{ item.item }}</span>
                     <span><strong>Posição:</strong> {{ item.posicao }}</span>
-                    <span><strong>Qtd:</strong> {{ "%.2f"|format(item.quantidade_original_float) }}</span>
+                    <span style="color: #000; font-weight: bold; font-size: 1.2em;">
+                        <strong>Qtd:</strong> {{ "%.2f"|format(item.quantidade_original_float) }}
+                    </span>
                     <span><strong>Saldo:</strong> {{ "%.2f"|format(item.saldo_separar_float) }}</span>
                 </div>
             </div>

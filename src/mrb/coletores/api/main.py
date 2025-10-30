@@ -800,6 +800,8 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
 
         if response.status_code == status.HTTP_200_OK:
             itens = response.json()
+            # ⚙️ Obtém a origem da ordem (se vier nos itens)
+            origem = itens[0].get("origem") if itens and "origem" in itens[0] else None
             
             # Processa os dados para a exibição na tela
             itens_processados = []
@@ -858,7 +860,7 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
             
             # Calcula o percentual
             percentual = round((itens_separados / total_itens * 100), 1) if total_itens > 0 else 0
-
+            print(origem)
             return prepara_response.retorna_response(
                 templates.TemplateResponse(
                     "itens_ordem_separacao.html",
@@ -871,6 +873,7 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
                         "itens_separados": itens_separados,
                         "percentual": percentual, 
                         "usuario_nome": prepara_response.nome_usuario,
+                        "origem": origem,  # ✅ adiciona aqui
                     },
                 )
             )
