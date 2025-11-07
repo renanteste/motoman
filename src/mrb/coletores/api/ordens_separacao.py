@@ -1189,3 +1189,19 @@ def obter_itens_ordem_separacao(
         )
     
     return itens
+
+@ordens_separacao_router.post("/encerrar/{ordem_separacao}")
+def encerrar_ordem(
+    ordem_separacao: str = Path(...),
+    x_cliente_token: str = Header(alias="X-Cliente-Token"),
+    db: Session = Depends(get_db)
+):
+    if not valida_chave_coletor(x_cliente_token):
+        raise HTTPException(status_code=403, detail="Chave de cliente inválida!")
+
+    try:
+        ordens = OrdensSeparacao(db=db)
+        ordens.encerrar(ordem_separacao)  # <-- você vai criar esse método
+        return {"mensagem": f"Ordem {ordem_separacao} encerrada com sucesso"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

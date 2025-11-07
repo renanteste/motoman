@@ -196,7 +196,18 @@
 
         <div class="botoes">
             <a href="/ordens" class="btn btn-voltar">← Voltar</a>
-            <button onclick="iniciarSeparacao('{{ ordem_separacao }}')" class="btn btn-continuar">▶ Continuar</button>
+
+            {% if itens_pendentes == 0 %}
+                <!-- ✅ Quando todos os itens foram separados -->
+                <button onclick="encerrarSeparacao('{{ ordem_separacao }}')" class="btn btn-continuar" style="background:#28a745;">
+                    ✅ Encerrar
+                </button>
+            {% else %}
+                <!-- 🔁 Ainda há itens pendentes -->
+                <button onclick="iniciarSeparacao('{{ ordem_separacao }}')" class="btn btn-continuar">
+                    ▶ Continuar
+                </button>
+            {% endif %}
         </div>
     </div>
 
@@ -230,6 +241,11 @@
             // Redireciona para o endpoint que inicia a separação (mantém o mesmo fluxo)
             window.location.href = "/inicia_separacao/" + encodeURIComponent(ordem);
             
+        }
+        function encerrarSeparacao(ordem) {
+            if (confirm("Deseja encerrar a separação da ordem " + ordem + "?")) {
+                window.location.href = "/encerrar_separacao/" + encodeURIComponent(ordem);
+            }
         }
         </script>
     <script>
