@@ -1,9 +1,7 @@
 import base64
 from decimal import InvalidOperation
 from typing import List, Optional
-from fastapi import FastAPI, Form, HTTPException, Path, Query, Request, status, Depends
-from sqlalchemy.orm import Session
-from src.mrb.common.database import get_db
+from fastapi import FastAPI, Form, HTTPException, Path, Query, Request, status
 from fastapi.middleware import Middleware
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -20,7 +18,6 @@ from src.mrb.coletores.api.prepara_response import PreparaResponse
 from src.mrb.common.lib.calcula_max_age import calcula_max_age
 from src.mrb.common.security.auth_service import valida_token
 from src.mrb.common.config import ApiConfiguration, Environment
-from src.mrb.coletores.api.ordens_separacao import OrdensSeparacao
 
 configura_log("coletores_frontend")
 
@@ -677,84 +674,29 @@ async def contagem(
     agrupador: Optional[str] = Form(None),
 ):
     """
-    Endpoint para receber os dados da contagem via POST do formulário de endereço.
-    Após atualizar o item no backend, verifica se ainda existem itens pendentes.
-    Se não houver, redireciona para a tela de itens com o botão "Encerrar".
+    Endpoint para receber os dados para o registro da contagem via POST do formulário de endereço.
     """
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
         return await logout(mensagem="Token de acesso inválido / expirado!")
 
-    # ✅ Função de proteção local
-    def safe_quote(valor):
-        """Evita erro de quote_from_bytes() expected bytes"""
-        if valor is None:
-            return ""
-        if isinstance(valor, (int, float)):
-            valor = str(valor)
-        if not isinstance(valor, str):
-            valor = str(valor)
-        return quote(valor)
-
     try:
-        # 🔹 1. Atualiza contagem no backend
-        url_backend = f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/atualiza_contagem"
-        dados = {
-            "ordem_separacao": ordem_separacao,
-            "item": item,
-            "saldo_separar": saldo_separar,
-            "endereco": endereco_coletado,
-            "usuario": prepara_response.nome_usuario,
-        }
-
-        response = requests.post(
-            url_backend,
-            json=dados,
-            headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
+        url = (
+            f"/contagem_view"
+            + f"?ordem_separacao={quote(ordem_separacao)}"
+            + f"&item={quote(item)}"
+            + f"&codigo_produto={quote(codigo_produto)}"
+            + f"&descricao_produto={quote(descricao_produto)}"
+            + f"&saldo_separar={quote(saldo_separar)}"
+            + f"&almoxarifado={quote(almoxarifado)}"
+            + f"&pedido={quote(pedido)}"
+            + f"&sequencia_pedido={quote(sequencia_pedido)}"
+            + f"&endereco_coletado={quote(endereco_coletado)}"
+            + f"&agrupador={quote(agrupador)}"
         )
 
-        # Se o backend retornar erro, dispara exceção
-        if response.status_code not in (200, 204):
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Erro ao atualizar contagem: {response.text}",
-            )
-
-        # 🔹 2. Verifica se ainda há itens pendentes
-        url_check = f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/itens_pendentes/{ordem_separacao}"
-        check = requests.get(url_check, headers={"X-Cliente-Token": Environment.CHAVE_COLETOR})
-
-        if check.status_code != 200:
-            raise HTTPException(
-                status_code=check.status_code,
-                detail=f"Erro ao verificar pendentes: {check.text}",
-            )
-
-        dados_check = check.json()
-        pendentes = dados_check.get("pendentes", 0)
-
-        # 🔹 3. Redirecionamento final
-        if pendentes == 0:
-            # ✅ Todos os itens foram separados → volta para tela de itens (mostra botão Encerrar)
-            redirect_url = f"/itens_ordem_separacao_view?ordem_separacao={safe_quote(ordem_separacao)}"
-        else:
-            # 🔁 Ainda há itens pendentes → permanece no fluxo de contagem
-            redirect_url = (
-                f"/contagem_view"
-                + f"?ordem_separacao={safe_quote(ordem_separacao)}"
-                + f"&item={safe_quote(item)}"
-                + f"&codigo_produto={safe_quote(codigo_produto)}"
-                + f"&descricao_produto={safe_quote(descricao_produto)}"
-                + f"&saldo_separar={safe_quote(saldo_separar)}"
-                + f"&almoxarifado={safe_quote(almoxarifado)}"
-                + f"&pedido={safe_quote(pedido)}"
-                + f"&sequencia_pedido={safe_quote(sequencia_pedido)}"
-                + f"&endereco_coletado={safe_quote(endereco_coletado)}"
-                + f"&agrupador={safe_quote(agrupador)}"
-            )
-
         return prepara_response.retorna_response(
-            RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+            RedirectResponse(url=url, status_code=status.HTTP_303_SEE_OTHER)
         )
 
     except Exception as e:
@@ -762,7 +704,6 @@ async def contagem(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Falha redirecionando contagem: {e}",
         )
-
 
 
 @app.post("/pausar", include_in_schema=False)
@@ -847,8 +788,6 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
 
         if response.status_code == status.HTTP_200_OK:
             itens = response.json()
-            # ⚙️ Obtém a origem da ordem (se vier nos itens)
-            origem = itens[0].get("origem") if itens and "origem" in itens[0] else None
             
             # Processa os dados para a exibição na tela
             itens_processados = []
@@ -907,7 +846,7 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
             
             # Calcula o percentual
             percentual = round((itens_separados / total_itens * 100), 1) if total_itens > 0 else 0
-            print(origem)
+
             return prepara_response.retorna_response(
                 templates.TemplateResponse(
                     "itens_ordem_separacao.html",
@@ -920,7 +859,6 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
                         "itens_separados": itens_separados,
                         "percentual": percentual, 
                         "usuario_nome": prepara_response.nome_usuario,
-                        "origem": origem,  # ✅ adiciona aqui
                     },
                 )
             )
@@ -965,52 +903,7 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
     
-@app.post("/encerrar_separacao/{ordem_separacao}", include_in_schema=False)
-async def encerrar_separacao(ordem_separacao: str):
-    """
-    Endpoint responsável por encerrar a separação da OS.
-    Atualiza status no banco e prepara para impressão da etiqueta.
-    """
-    try:
-        # Chama o backend para encerrar no banco (ou faz o update direto se o main tiver acesso ao DB)
-        url = f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/encerrar/{ordem_separacao}"
-        response = requests.post(url, headers={"X-Cliente-Token": Environment.CHAVE_COLETOR})
-
-        if response.status_code == 200:
-            return Response(status_code=status.HTTP_200_OK)
-        else:
-            raise HTTPException(status_code=response.status_code, detail=response.text)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Falha ao encerrar separação: {e}")
-
-@app.get("/itens_pendentes/{ordem_separacao}", include_in_schema=False)
-def itens_pendentes(ordem_separacao: str, db: Session = Depends(get_db)):
-    """
-    Retorna a contagem de itens ainda pendentes de separação para a OS informada.
-    """
-    try:
-        ordens = OrdensSeparacao(db=db)
-        itens = ordens.obter_todos_itens_os(ordem_separacao)
-
-        # Conta quantos ainda têm saldo a separar
-        pendentes = sum(
-            1 for item in itens
-            if hasattr(item, "saldo_separar") and float(item.saldo_separar) > 0
-        )
-
-        return {"pendentes": pendentes}
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao contar itens pendentes: {e}",
-        )
-
-
-
-
-
+    
 if __name__ == "__main__":
     argumentos_uvicorn = {
         "app": "main:app",
@@ -1032,13 +925,3 @@ if __name__ == "__main__":
         )
 
     uvicorn.run(**argumentos_uvicorn)
-
-    def safe_quote(valor):
-        """Garante que o valor é string antes de aplicar quote()."""
-        if valor is None:
-            return ""
-        if isinstance(valor, (int, float)):
-            valor = str(valor)
-        if not isinstance(valor, str):
-            valor = str(valor)
-        return quote(valor)
