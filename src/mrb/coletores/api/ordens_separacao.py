@@ -921,6 +921,41 @@ class OrdensSeparacao:
                 excecao=e,
             )
 
+    def encerrar_separacao(self, ordem_separacao: str) -> dict:
+        """
+        Encerra a ordem de separação alterando seu status para 'finalizada'.
+        """
+        # ❌ não use alias
+        update_stmt = (
+            update(ordens_separacao_cb7)
+            .where(
+                ordens_separacao_cb7.c.D_E_L_E_T_ == " ",
+                ordens_separacao_cb7.c.CB7_FILIAL == "01",
+                ordens_separacao_cb7.c.CB7_ORDSEP == ordem_separacao,
+            )
+            .values(
+                CB7_STATUS="9",
+                CB7_STATPA="0",
+                CB7_DTFIMS=datetime.now().strftime("%Y%m%d"),
+                CB7_HRFIMS=datetime.now().strftime("%H%M"),
+            )
+        )
+
+        try:
+            self.db.execute(update_stmt)
+            self.db.commit()
+            return {"detail": f"Ordem {ordem_separacao} encerrada com sucesso"}
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Falha ao encerrar separação",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
+            )
+
+
 
 def recupera_posicoes(
     db: Session, codigo_produto: str, almoxarifado: str, posicao_atual: str
@@ -1116,6 +1151,26 @@ def pausar_separacao(
 
     ordens_separacao = OrdensSeparacao(db=db)
     return ordens_separacao.pausar_separacao(ordem_separacao)
+
+@ordens_separacao_router.post(
+    "/encerrar_separacao/{ordem_separacao}",
+    summary="Encerra a ordem de separação",
+)
+def encerrar_separacao(
+    ordem_separacao: str,
+    x_cliente_token: str = Header(alias="X-Cliente-Token"),
+    db: Session = Depends(get_db),
+):
+    if not valida_chave_coletor(x_cliente_token):
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
+        )
+
+    ordens = OrdensSeparacao(db=db)
+    return ordens.encerrar_separacao(ordem_separacao)
+
 
 
 @ordens_separacao_router.post(

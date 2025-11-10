@@ -903,6 +903,36 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
     
+
+@app.get("/encerrar_separacao/{ordem_separacao}", include_in_schema=False)
+async def encerrar_separacao(request: Request, ordem_separacao: str):
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
+
+    response = prepara_response.exec_request(
+        url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/encerrar_separacao/{ordem_separacao}",
+        metodo="post",
+        headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
+    )
+
+    if response.status_code == status.HTTP_200_OK:
+        return RedirectResponse(
+            url=f"/ordens/finalizada/{ordem_separacao}",
+            status_code=status.HTTP_302_FOUND,
+        )
+    else:
+        return prepara_response.retorna_response(
+            templates.TemplateResponse(
+                "ordens.html",
+                {
+                    "request": request,
+                    "erro": f"Erro encerrando separação: {response.json().get('detail', response.text)}",
+                    "usuario_nome": prepara_response.nome_usuario,
+                },
+            )
+        )
+
     
 if __name__ == "__main__":
     argumentos_uvicorn = {
