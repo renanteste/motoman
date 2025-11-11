@@ -3,7 +3,7 @@ from decimal import InvalidOperation
 from typing import List, Optional
 from fastapi import FastAPI, Form, HTTPException, Path, Query, Request, status
 from fastapi.middleware import Middleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from urllib.parse import quote
@@ -424,7 +424,6 @@ async def processa_login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-
 @app.post("/grava_separacao", include_in_schema=False)
 async def grava_separacao(
     request: Request,
@@ -440,7 +439,7 @@ async def grava_separacao(
     agrupador: Optional[str] = Form(None),
 ):
     """
-    Endpoint para receber os dados da separação registrados no frontend e invocar a gravação no backend.
+    Endpoint que grava a separação de itens e controla o fluxo de finalização.
     """
     prepara_response = PreparaResponse(request=request)
     if not prepara_response.valida_tokens():
@@ -449,7 +448,7 @@ async def grava_separacao(
     try:
         quantidade_separada_float = quantidade_float(quantidade_separada)
 
-        # Registra a separação no endpoint registra_separacao
+        # 1️⃣ Registra separação no backend
         response = prepara_response.exec_request(
             url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/registra_separacao",
             metodo="post",
@@ -470,22 +469,62 @@ async def grava_separacao(
             },
         )
 
+        # 🔒 Caso o backend retorne 401 (token inválido)
         if response.status_code == status.HTTP_401_UNAUTHORIZED:
-            return await logout(
-                mensagem=response.json().get("detail", "Não autorizado!")
+            return await logout(mensagem=response.json().get("detail", "Não autorizado!"))
+
+        # 2️⃣ Caso backend informe que não há mais itens (204 No Content)
+        if response.status_code == status.HTTP_204_NO_CONTENT:
+            # Mesmo sem itens restantes, validamos pendências e origem
+            pendencia_resp = prepara_response.exec_request(
+                url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/verifica_pendencias/{ordem_separacao}",
+                metodo="get",
+                headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
             )
 
-        elif response.status_code == status.HTTP_204_NO_CONTENT:
-            # Ordem de separação gravada sem retornar novos itens, é ordem finalizada
-            return prepara_response.retorna_response(
-                RedirectResponse(
-                    url=f"/ordens/finalizada/{ordem_separacao}",
-                    status_code=status.HTTP_302_FOUND,
+            pendencias = 1
+            if pendencia_resp.status_code == status.HTTP_200_OK:
+                pendencias_data = pendencia_resp.json()
+                pendencias = pendencias_data.get("pendencias", 0)
+
+            if pendencias == 0:
+                origem_resp = prepara_response.exec_request(
+                    url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/origem_separacao/{ordem_separacao}",
+                    metodo="get",
+                    headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
                 )
-            )
 
+                origem = None
+                if origem_resp.status_code == status.HTTP_200_OK:
+                    origem = origem_resp.json().get("origem")
+
+                mostrar_botao_encerrar = origem in ["5", "6"]
+
+                mensagem = (
+                    "Todos os itens foram separados."
+                    if mostrar_botao_encerrar
+                    else f"Ordem de separação finalizada. Origem {origem} não permite encerramento automático."
+                )
+
+                # ✅ Renderiza a tela final de conclusão
+                return prepara_response.retorna_response(
+                    templates.TemplateResponse(
+                        "finaliza_ordem_separacao.html",
+                        {
+                            "request": request,
+                            "ordem_separacao": ordem_separacao,
+                            "mensagem": mensagem,
+                            "usuario_nome": prepara_response.nome_usuario,
+                            "mostrar_botao_encerrar": mostrar_botao_encerrar,
+                        },
+                    )
+                )
+
+            # Se ainda houver pendências, segue o fluxo normal abaixo
+            print(f"➡️ Ainda há pendências na OS {ordem_separacao}. Continuando fluxo...")
+
+        # 3️⃣ Caso backend tenha retornado erro inesperado
         elif not response.status_code == status.HTTP_200_OK:
-            # No caso de erro, renderiza novamente a tela de contagem exibindo a mensagem retornada pelo backend
             return prepara_response.retorna_response(
                 templates.TemplateResponse(
                     "contagem.html",
@@ -502,12 +541,62 @@ async def grava_separacao(
                         "sequencia_pedido": sequencia_pedido,
                         "endereco_coletado": endereco_coletado,
                         "usuario_nome": prepara_response.nome_usuario,
-                        "erro": f"Não gravado: {response.status_code} - {response.json()['detail']}",
+                        "erro": f"Não gravado: {response.status_code} - {response.json().get('detail', '')}",
                     },
                 )
             )
 
-        # O retorno da separação gravada com sucesso é do próximo item
+        # 4️⃣ Se chegou aqui, significa que a separação continua normalmente
+        pendencia_resp = prepara_response.exec_request(
+            url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/verifica_pendencias/{ordem_separacao}",
+            metodo="get",
+            headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
+        )
+
+        print("🔍 Verifica pendências - status:", pendencia_resp.status_code)
+        print("🔍 Resposta pendências:", pendencia_resp.text)
+
+        if pendencia_resp.status_code == status.HTTP_200_OK:
+            pendencias_data = pendencia_resp.json()
+            pendencias = pendencias_data.get("pendencias", 0)
+            print(f"✅ Pendências encontradas: {pendencias}")
+
+            if pendencias == 0:
+                # Nenhuma pendência → verificar origem
+                origem_resp = prepara_response.exec_request(
+                    url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/origem_separacao/{ordem_separacao}",
+                    metodo="get",
+                    headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
+                )
+
+                origem = None
+                if origem_resp.status_code == status.HTTP_200_OK:
+                    origem = origem_resp.json().get("origem")
+
+                mostrar_botao_encerrar = origem in ["5", "6"]
+
+                mensagem = (
+                    "Todos os itens foram separados."
+                    if mostrar_botao_encerrar
+                    else f"Ordem de separação finalizada. Origem {origem} não permite encerramento automático."
+                )
+
+                return prepara_response.retorna_response(
+                    templates.TemplateResponse(
+                        "finaliza_ordem_separacao.html",
+                        {
+                            "request": request,
+                            "ordem_separacao": ordem_separacao,
+                            "mensagem": mensagem,
+                            "usuario_nome": prepara_response.nome_usuario,
+                            "mostrar_botao_encerrar": mostrar_botao_encerrar,
+                        },
+                    )
+                )
+
+        # 5️⃣ Ainda há itens → segue fluxo normal de contagem
+        print("➡️ Ainda há pendências. Continuando fluxo normal.")
+
         return prepara_response.retorna_response(
             retorno_separacao(
                 request=request,
@@ -523,7 +612,6 @@ async def grava_separacao(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Falha preparando para gravar separação: {e}",
         )
-
 
 @app.post("/pular", include_in_schema=False)
 async def pular_item(
@@ -681,6 +769,18 @@ async def contagem(
         return await logout(mensagem="Token de acesso inválido / expirado!")
 
     try:
+        # Garante que nenhum valor seja None (quote() só aceita str)
+        ordem_separacao = ordem_separacao or ""
+        item = item or ""
+        codigo_produto = codigo_produto or ""
+        descricao_produto = descricao_produto or ""
+        saldo_separar = saldo_separar or ""
+        almoxarifado = almoxarifado or ""
+        pedido = pedido or ""
+        sequencia_pedido = sequencia_pedido or ""
+        endereco_coletado = endereco_coletado or ""
+        agrupador = agrupador or ""  # <--- aqui era o problema
+
         url = (
             f"/contagem_view"
             + f"?ordem_separacao={quote(ordem_separacao)}"
@@ -932,6 +1032,42 @@ async def encerrar_separacao(request: Request, ordem_separacao: str):
                 },
             )
         )
+    
+@app.get("/verifica_pendencias", include_in_schema=False)
+async def verifica_pendencias(
+    request: Request,
+    ordem_separacao: str = Query(...),
+):
+    """
+    Endpoint do frontend que consulta o backend e exibe a contagem de pendências.
+    Usado tanto para lógica interna (no grava_separacao) quanto para debug manual.
+    """
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
+
+    try:
+        response = prepara_response.exec_request(
+            url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/verifica_pendencias/{ordem_separacao}",
+            metodo="get",
+            headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
+        )
+
+        if response.status_code == status.HTTP_200_OK:
+            pendencias = response.json().get("pendencias", 0)
+            return JSONResponse({"ordem_separacao": ordem_separacao, "pendencias": pendencias})
+
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=f"Erro consultando backend: {response.text}",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Falha ao verificar pendências: {e}",
+        )
+
 
     
 if __name__ == "__main__":

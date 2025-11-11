@@ -24,6 +24,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from src.mrb.common.lib.log_httpexception_raise import NivelLog, log_httpexception_raise
 from src.mrb.common.lib.prepara_dados_protheus import prepara_dados_protheus
+import logging
 from src.mrb.common.config import Environment
 from src.mrb.coletores.schemas.schema_ordem_separacao import (
     ItemOrdemSeparacao,
@@ -37,6 +38,7 @@ from src.mrb.common.models.model_recursos_protheus import recursos_ae8
 from src.mrb.common.models.model_usuarios_portal import usuarios_szk
 from src.mrb.coletores.models.model_operadores_cb1 import operadores_cb1
 from src.mrb.coletores.models.model_ordens_separacao import ordens_separacao_cb7
+from src.mrb.coletores.models.model_pedidos_vendas import pedidos_vendas_sc6
 from src.mrb.coletores.models.model_posicoes_almoxarifado import posicoes_z0o
 from src.mrb.coletores.models.model_itens_ordem_separacao import (
     itens_ordem_separacao_cb8,
@@ -732,12 +734,15 @@ class OrdensSeparacao:
         else:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+    
+
     def atualiza_status_separacao(self, ordem_separacao: str, usuario_operador: str):
         """
         Verifica se a ordem de separação está totalmente separada e atualiza seu status para concluída.
         """
         itens_com_saldo: int = None
         cb8 = aliased(itens_ordem_separacao_cb8, name="cb8")
+
         query = select(func.count(cb8.c.CB8_ORDSEP).label("CNT")).where(
             and_(
                 cb8.c.D_E_L_E_T_ == " ",
@@ -749,7 +754,6 @@ class OrdensSeparacao:
 
         try:
             itens_com_saldo = self.db.execute(query).scalar()
-
         except SQLAlchemyError as e:
             log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -760,13 +764,29 @@ class OrdensSeparacao:
             )
 
         if itens_com_saldo is not None and itens_com_saldo == 0:
-            # A ordem de separação está totalmente atendida
-            auth_service = AuthService(db=self.db)
-            auth_service.recupera_dados_usuario(id_usuario=usuario_operador)
-            usuario_erp = (
-                auth_service.dados_usuario.dados_cadastro_recursos.codigo_usuario_protheus
-            )
-            query = (
+            usuario_erp = " "
+
+            try:
+                auth_service = AuthService(db=self.db)
+                auth_service.recupera_dados_usuario(id_usuario=usuario_operador)
+
+                if (
+                    auth_service.dados_usuario
+                    and auth_service.dados_usuario.dados_cadastro_recursos
+                    and auth_service.dados_usuario.dados_cadastro_recursos.codigo_usuario_protheus
+                ):
+                    usuario_erp = auth_service.dados_usuario.dados_cadastro_recursos.codigo_usuario_protheus
+                else:
+                    logging.warning(
+                        f"[ATUALIZA_STATUS_SEPARACAO] Usuário '{usuario_operador}' sem código Protheus cadastrado."
+                    )
+
+            except Exception as e:
+                logging.warning(
+                    f"[ATUALIZA_STATUS_SEPARACAO] Erro ao recuperar dados do usuário '{usuario_operador}': {e}"
+                )
+
+            query_update = (
                 update(ordens_separacao_cb7)
                 .where(
                     and_(
@@ -788,9 +808,11 @@ class OrdensSeparacao:
             )
 
             try:
-                self.db.execute(query)
+                self.db.execute(query_update)
                 self.db.commit()
-
+                logging.info(
+                    f"[ATUALIZA_STATUS_SEPARACAO] Ordem {ordem_separacao} concluída com sucesso (usuário ERP: {usuario_erp})."
+                )
             except SQLAlchemyError as e:
                 self.db.rollback()
                 log_httpexception_raise(
@@ -800,6 +822,7 @@ class OrdensSeparacao:
                     nivel_log=NivelLog.ERROR,
                     excecao=e,
                 )
+
 
     def obter_todos_itens_os(self, ordem_separacao: str) -> List[ItemOrdemSeparacao]:
         """
@@ -923,38 +946,182 @@ class OrdensSeparacao:
 
     def encerrar_separacao(self, ordem_separacao: str) -> dict:
         """
-        Encerra a ordem de separação alterando seu status para 'finalizada'.
+        Encerra a ordem de separação conforme regras de negócio.
         """
-        # ❌ não use alias
-        update_stmt = (
-            update(ordens_separacao_cb7)
+
+        cb7 = ordens_separacao_cb7
+        cb8 = itens_ordem_separacao_cb8
+        sc6 = pedidos_vendas_sc6
+        afa = insumos_projetos_afa
+
+        # 1️⃣ Buscar origem da ordem
+        origem_stmt = select(cb7.c.CB7_ORIGEM).where(
+            cb7.c.CB7_ORDSEP == ordem_separacao,
+            cb7.c.D_E_L_E_T_ == " ",
+            cb7.c.CB7_FILIAL == "01",
+        )
+
+        try:
+            origem = self.db.execute(origem_stmt).scalar()
+        except SQLAlchemyError as e:
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Falha ao recuperar origem da ordem de separação",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
+            )
+
+        # 🚫 Regras de origem: só pode 5 ou 6
+        if origem not in ["5", "6"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Não é permitido encerrar ordem {ordem_separacao} com origem {origem}. "
+                    "Apenas origens 5 ou 6 são válidas."
+            )
+
+        # 2️⃣ Verificar pendências (CB8 + SC6)
+        pendencia_stmt = (
+            select(func.count())
+            .select_from(
+                cb8.join(
+                    sc6,
+                    and_(
+                        sc6.c.D_E_L_E_T_ == " ",
+                        sc6.c.C6_FILIAL == "01",
+                        sc6.c.C6_NUM >= " ",
+                        sc6.c.C6_ITEM >= " ",
+                        sc6.c.C6_PRODUTO == cb8.c.CB8_PROD,
+                        sc6.c.C6_XCPORIG == cb8.c.CB8_XNUMSA,
+                        sc6.c.C6_XITCPOR == cb8.c.CB8_XITSA,
+                        sc6.c.C6_XCPORIG != " ",
+                        sc6.c.C6_XITCPOR != " ",
+                    ),
+                )
+            )
             .where(
-                ordens_separacao_cb7.c.D_E_L_E_T_ == " ",
-                ordens_separacao_cb7.c.CB7_FILIAL == "01",
-                ordens_separacao_cb7.c.CB7_ORDSEP == ordem_separacao,
+                cb8.c.D_E_L_E_T_ == " ",
+                cb8.c.CB8_FILIAL == "01",
+                cb8.c.CB8_ORDSEP == ordem_separacao,
+                cb8.c.CB8_ITEM >= " ",
+            )
+        )
+
+
+        try:
+            pendencias = self.db.execute(pendencia_stmt).scalar()
+        except SQLAlchemyError as e:
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Erro ao verificar pendências na separação",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
+            )
+
+        if pendencias > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Existem pendências entre CB8 e SC6. Não é possível encerrar."
+            )
+
+        # 3️⃣ Definir CB7_XTPENT / CB7_XDOCEN
+        try:
+            cb8_info = self.db.execute(
+                select(cb8.c.CB8_XNUMSA)
+                .where(cb8.c.D_E_L_E_T_ == " ", cb8.c.CB8_ORDSEP == ordem_separacao)
+                .limit(1)
+            ).first()
+        except SQLAlchemyError as e:
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Falha ao buscar CB8_XNUMSA para encerramento",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
+            )
+
+        if cb8_info and cb8_info.CB8_XNUMSA.strip():
+            xtpent = "4"
+            xdocen = cb8_info.CB8_XNUMSA.strip()
+        else:
+            xtpent = "3"
+            xdocen = " " * 10
+
+        # 4️⃣ Atualizar CB7
+        update_stmt = (
+            update(cb7)
+            .where(
+                cb7.c.D_E_L_E_T_ == " ",
+                cb7.c.CB7_FILIAL == "01",
+                cb7.c.CB7_ORDSEP == ordem_separacao,
             )
             .values(
                 CB7_STATUS="9",
                 CB7_STATPA="0",
                 CB7_DTFIMS=datetime.now().strftime("%Y%m%d"),
                 CB7_HRFIMS=datetime.now().strftime("%H%M"),
+                CB7_XTPENT=xtpent,
+                CB7_XDOCEN=xdocen,
             )
         )
 
         try:
             self.db.execute(update_stmt)
-            self.db.commit()
-            return {"detail": f"Ordem {ordem_separacao} encerrada com sucesso"}
         except SQLAlchemyError as e:
             self.db.rollback()
             log_httpexception_raise(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                mensagem="Falha ao encerrar separação",
+                mensagem="Erro ao atualizar CB7 durante encerramento",
                 exc_info=True,
                 nivel_log=NivelLog.ERROR,
                 excecao=e,
             )
 
+        # 5️⃣ Limpar vínculos AFA_XORDSE
+        afa_stmt = (
+            select(afa.c.R_E_C_N_O_)
+            .select_from(
+                cb8.join(
+                    afa,
+                    and_(
+                        afa.c.D_E_L_E_T_ == " ",
+                        afa.c.AFA_FILIAL == "01",
+                        afa.c.AFA_PROJET == cb8.c.CB8_XPROJE,
+                        afa.c.AFA_TAREFA == cb8.c.CB8_XTAREF,
+                        afa.c.AFA_ITEM == cb8.c.CB8_XITTAR,
+                        afa.c.AFA_PRODUT == cb8.c.CB8_PROD,
+                        afa.c.AFA_XORDSE == cb8.c.CB8_ORDSEP,
+                    ),
+                )
+            )
+            .where(
+                cb8.c.D_E_L_E_T_ == " ",
+                cb8.c.CB8_FILIAL == "01",
+                cb8.c.CB8_ORDSEP == ordem_separacao,
+            )
+        )
+
+        try:
+            registros_afa = [r[0] for r in self.db.execute(afa_stmt)]
+            for reg in registros_afa:
+                self.db.execute(
+                    update(afa)
+                    .where(afa.c.R_E_C_N_O_ == reg)
+                    .values(AFA_XORDSE="      ")
+                )
+            self.db.commit()
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Erro ao limpar vínculos em AFA (AFA_XORDSE)",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
+            )
+
+        return {"detail": f"✅ Ordem {ordem_separacao} encerrada com sucesso e atualizada."}
 
 
 def recupera_posicoes(
@@ -1207,6 +1374,41 @@ def valida_chave_coletor(chave_cliente) -> bool:
     """
     return chave_cliente == Environment.CHAVE_COLETOR
 
+@ordens_separacao_router.get("/verifica_pendencias/{ordem_separacao}")
+def verifica_pendencias(ordem_separacao: str, db: Session = Depends(get_db)):
+    cb8 = itens_ordem_separacao_cb8
+    sc6 = pedidos_vendas_sc6  # tabela SC6
+
+    stmt = (
+        select(func.count())
+        .select_from(
+            cb8.join(
+                sc6,
+                and_(
+                    sc6.c.D_E_L_E_T_ == " ",
+                    sc6.c.C6_FILIAL == "01",
+                    sc6.c.C6_NUM >= " ",
+                    sc6.c.C6_ITEM >= " ",
+                    sc6.c.C6_PRODUTO == cb8.c.CB8_PROD,
+                    sc6.c.C6_XCPORIG == cb8.c.CB8_XNUMSA,
+                    sc6.c.C6_XITCPOR == cb8.c.CB8_XITSA,
+                    sc6.c.C6_XCPORIG != " ",
+                    sc6.c.C6_XITCPOR != " ",
+                ),
+            )
+        )
+        .where(
+            cb8.c.D_E_L_E_T_ == " ",
+            cb8.c.CB8_FILIAL == "01",
+            cb8.c.CB8_ORDSEP == ordem_separacao,
+            cb8.c.CB8_ITEM >= " ",
+            cb8.c.CB8_SALDOS > 0,  # ainda há saldo a separar
+        )
+    )
+
+    pendencias = db.execute(stmt).scalar() or 0
+    print(f"🔎 Verifica pendências → OS {ordem_separacao}: {pendencias} itens com saldo")
+    return {"pendencias": pendencias}
 
 
 
@@ -1260,3 +1462,24 @@ def encerrar_ordem(
         return {"mensagem": f"Ordem {ordem_separacao} encerrada com sucesso"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@ordens_separacao_router.get("/origem_separacao/{ordem_separacao}")
+def origem_separacao(ordem_separacao: str, db: Session = Depends(get_db)):
+    """
+    Retorna a origem da ordem de separação (CB7_ORIGEM)
+    """
+    query = select(ordens_separacao_cb7.c.CB7_ORIGEM).where(
+        and_(
+            ordens_separacao_cb7.c.D_E_L_E_T_ == " ",
+            ordens_separacao_cb7.c.CB7_FILIAL == "01",
+            ordens_separacao_cb7.c.CB7_ORDSEP == ordem_separacao,
+        )
+    )
+    origem = db.execute(query).scalar()
+
+    if origem is None:
+        raise HTTPException(
+            status_code=404, detail=f"Ordem {ordem_separacao} não encontrada."
+        )
+
+    return {"origem": origem}

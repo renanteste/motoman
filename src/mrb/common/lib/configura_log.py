@@ -23,5 +23,7 @@ def configura_log(nome_aplicao: str):
         handlers=[
             logging.FileHandler(nome_arquivo_log, mode="a"),
             logging.StreamHandler(),
+            logging.warning("Este é um aviso"),
+            logging.info("Esta é uma informação")
         ],
     )

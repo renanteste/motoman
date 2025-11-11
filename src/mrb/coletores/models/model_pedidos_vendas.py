@@ -6,6 +6,6 @@ from src.mrb.common.database.db_engine import engine
 metadata = MetaData()
 
 # Refletindo uma tabela existente no banco de dados
-ordens_separacao_cb7 = Table("CB7010", metadata, autoload_with=engine)
+pedidos_vendas_sc6 = Table("SC6010", metadata, autoload_with=engine)
 
 
