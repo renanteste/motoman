@@ -18,13 +18,16 @@ from sqlalchemy import (
     select,
     union_all,
     update,
+    text,
 )
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
 
 from src.mrb.common.lib.log_httpexception_raise import NivelLog, log_httpexception_raise
 from src.mrb.common.lib.prepara_dados_protheus import prepara_dados_protheus
 import logging
+import socket
 from src.mrb.common.config import Environment
 from src.mrb.coletores.schemas.schema_ordem_separacao import (
     ItemOrdemSeparacao,
@@ -40,13 +43,15 @@ from src.mrb.coletores.models.model_operadores_cb1 import operadores_cb1
 from src.mrb.coletores.models.model_ordens_separacao import ordens_separacao_cb7
 from src.mrb.coletores.models.model_pedidos_vendas import pedidos_vendas_sc6
 from src.mrb.coletores.models.model_posicoes_almoxarifado import posicoes_z0o
+from src.mrb.common.models.model_insumos_projeto_afa import insumos_projetos_afa
+
 from src.mrb.coletores.models.model_itens_ordem_separacao import (
     itens_ordem_separacao_cb8,
 )
 from src.mrb.coletores.models.model_registro_separacao import registro_separacao_cb9
 from src.mrb.comercial.models.model_clientes import clientes_sa1
 from src.mrb.common.models.model_produtos_sb1 import produtos_sb1
-from src.mrb.common.models.model_insumos_projeto_afa import insumos_projetos_afa
+from datetime import datetime
 
 ordens_separacao_router = APIRouter()
 
@@ -1122,7 +1127,155 @@ class OrdensSeparacao:
             )
 
         return {"detail": f"✅ Ordem {ordem_separacao} encerrada com sucesso e atualizada."}
+    
+    def imprimir_etiquetas(self, ordem_separacao: str) -> dict:
+        """
+        Gera as etiquetas (ZPL) da OS e envia para a impressora Zebra em rede.
+        Compatível com a estrutura de dados do Protheus (campos CHAR/FLOAT).
+        """
+        try:
+            # 1️⃣ Buscar o número da SA (CB8_XNUMSA)
+            cb8_stmt = text("""
+                SELECT FIRST 1 CB8_XNUMSA
+                FROM CB8010
+                WHERE D_E_L_E_T_ = ' '
+                AND CB8_FILIAL = '01'
+                AND CB8_ORDSEP = :ordem
+            """)
+            cb8_result = self.db.execute(cb8_stmt, {"ordem": ordem_separacao}).fetchone()
+            if not cb8_result or not cb8_result[0].strip():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Não foi possível localizar o número da SA (CB8_XNUMSA) para a OS {ordem_separacao}."
+                )
 
+            numero_sa = cb8_result[0].strip()
+
+            # 2️⃣ Executar query principal (SCP010 + AFA010)
+            query = text("""
+                SELECT
+                    CP_XORDSEP,
+                    CP_XPROJET,
+                    CP_XPROD,
+                    AFA_XAGRUP,
+                    CP_NUM,
+                    CP_PRODUTO,
+                    CP_DESCRI,
+                    CP_SOLICIT,
+                    CP_QUANT
+                FROM SCP010 SCP
+                JOIN AFA010 AFA ON
+                    AFA.D_E_L_E_T_ = ' '
+                    AND AFA.AFA_FILIAL = '01'
+                    AND AFA.AFA_PROJET = SCP.CP_XPROJET
+                    AND AFA.AFA_TAREFA = SCP.CP_XTAREFA
+                    AND AFA.AFA_ITEM = SCP.CP_XITTARE
+                    AND AFA.AFA_XPROD = SCP.CP_XPROD
+                WHERE SCP.D_E_L_E_T_ = ' '
+                AND SCP.CP_FILIAL = '01'
+                AND SCP.CP_NUM = :num_sa
+                AND SCP.CP_XORDSEP = :ordem
+                ORDER BY
+                    SCP.CP_XPROJET,
+                    SCP.CP_XPROD,
+                    AFA.AFA_XAGRUP,
+                    SCP.CP_PRODUTO
+            """)
+
+            resultados = self.db.execute(query, {"ordem": ordem_separacao, "num_sa": numero_sa}).fetchall()
+            if not resultados:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Nenhum registro encontrado para impressão da OS {ordem_separacao}."
+                )
+
+            # 3️⃣ Montar etiquetas em ZPL (com segurança para campos Protheus)
+            etiquetas = []
+            pagina = 1
+            datahora = datetime.now().strftime("%Y%m%d%H%M%S")
+            usuario = "000265"  # TODO: puxar do token autenticado
+
+            proj_ant, prod_ant, agrup_ant = None, None, None
+            etiqueta = ""
+
+            for row in resultados:
+                # Tratamento robusto contra espaços e tipos errados
+                cp_xprojet = (row.CP_XPROJET or "").strip()
+                cp_xprod = (row.CP_XPROD or "").strip()
+                afa_xagrup = (row.AFA_XAGRUP or "").strip()
+                cp_num = (row.CP_NUM or "").strip()
+                cp_produto = (row.CP_PRODUTO or "").strip()
+                cp_descri = (row.CP_DESCRI or "").strip()
+
+                try:
+                    cp_quant = f"{Decimal(str(row.CP_QUANT or 0)):.2f}".replace(".", ",")
+                except:
+                    cp_quant = "0,00"
+
+                # Se mudou projeto/produto → nova etiqueta
+                if (proj_ant, prod_ant) != (cp_xprojet, cp_xprod):
+                    if etiqueta:
+                        etiqueta += (
+                            f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-ETQ{pagina}==>^FS\n^XZ\n"
+                        )
+                        etiquetas.append(etiqueta)
+                        pagina += 1
+
+                    etiqueta = "^XA\n^PR2\n^PQ1\n^LL252\n"
+                    etiqueta += f"^FO6,60^A0N,154,168^FR^FH_^FDOS {ordem_separacao}^FS\n"
+                    etiqueta += f"^FO6,204^A0N,032,035^FR^FH_^FD{cp_xprojet}  {cp_xprod}^FS\n"
+                    proj_ant, prod_ant = cp_xprojet, cp_xprod
+                    agrup_ant = None
+
+                # Se mudou agrupador → imprime linha AGR
+                if afa_xagrup and afa_xagrup != agrup_ant:
+                    etiqueta += f"^FO6,264^A0N,032,035^FR^FH_^FDAGR {afa_xagrup}^FS\n"
+                    etiqueta += f"^FO6,324^A0N,032,035^FR^FH_^FDSA {cp_num}^FS\n"
+                    agrup_ant = afa_xagrup
+
+                # Linha de produto
+                etiqueta += (
+                    f"^FO6,384^A0N,025,025^FR^FH_^FD{cp_produto:<20}{cp_quant} {cp_descri}^FS\n"
+                )
+
+            # Finaliza a última etiqueta
+            if etiqueta:
+                etiqueta += (
+                    f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-ETQ{pagina}<FIM>^FS\n^XZ\n"
+                )
+                etiquetas.append(etiqueta)
+
+            zpl_final = "\n".join(etiquetas)
+
+            # 4️⃣ Enviar para impressora Zebra em rede (porta 9100)
+            impressora_ip = "192.168.0.50"  # ← ajustar conforme a rede
+            impressora_porta = 9100
+
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.connect((impressora_ip, impressora_porta))
+                    s.sendall(zpl_final.encode("utf-8"))
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Falha ao enviar etiqueta para impressora: {e}",
+                )
+
+            # 5️⃣ Retorno final
+            return {
+                "detail": f"✅ {len(etiquetas)} etiqueta(s) da OS {ordem_separacao} geradas e enviadas à impressora.",
+                "ordem": ordem_separacao,
+            }
+
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            log_httpexception_raise(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                mensagem="Erro ao gerar etiquetas da OS.",
+                exc_info=True,
+                nivel_log=NivelLog.ERROR,
+                excecao=e,
+            )
 
 def recupera_posicoes(
     db: Session, codigo_produto: str, almoxarifado: str, posicao_atual: str
@@ -1376,39 +1529,30 @@ def valida_chave_coletor(chave_cliente) -> bool:
 
 @ordens_separacao_router.get("/verifica_pendencias/{ordem_separacao}")
 def verifica_pendencias(ordem_separacao: str, db: Session = Depends(get_db)):
+    """
+    Verifica se ainda existem itens com saldo pendente de separação.
+    Retorna {"pendencias": X}, onde X = quantidade de itens ainda não totalmente separados.
+    """
     cb8 = itens_ordem_separacao_cb8
-    sc6 = pedidos_vendas_sc6  # tabela SC6
 
     stmt = (
         select(func.count())
-        .select_from(
-            cb8.join(
-                sc6,
-                and_(
-                    sc6.c.D_E_L_E_T_ == " ",
-                    sc6.c.C6_FILIAL == "01",
-                    sc6.c.C6_NUM >= " ",
-                    sc6.c.C6_ITEM >= " ",
-                    sc6.c.C6_PRODUTO == cb8.c.CB8_PROD,
-                    sc6.c.C6_XCPORIG == cb8.c.CB8_XNUMSA,
-                    sc6.c.C6_XITCPOR == cb8.c.CB8_XITSA,
-                    sc6.c.C6_XCPORIG != " ",
-                    sc6.c.C6_XITCPOR != " ",
-                ),
-            )
-        )
         .where(
             cb8.c.D_E_L_E_T_ == " ",
             cb8.c.CB8_FILIAL == "01",
             cb8.c.CB8_ORDSEP == ordem_separacao,
-            cb8.c.CB8_ITEM >= " ",
-            cb8.c.CB8_SALDOS > 0,  # ainda há saldo a separar
+            cb8.c.CB8_SALDOS > 0  # ainda há saldo a separar
         )
     )
 
-    pendencias = db.execute(stmt).scalar() or 0
-    print(f"🔎 Verifica pendências → OS {ordem_separacao}: {pendencias} itens com saldo")
-    return {"pendencias": pendencias}
+    try:
+        pendencias = db.execute(stmt).scalar() or 0
+        print(f"🔎 Verifica pendências → OS {ordem_separacao}: {pendencias} itens com saldo")
+        return {"pendencias": pendencias}
+    except Exception as e:
+        print(f"❌ Erro ao verificar pendências da OS {ordem_separacao}: {e}")
+        return {"pendencias": -1}
+
 
 
 
@@ -1483,3 +1627,27 @@ def origem_separacao(ordem_separacao: str, db: Session = Depends(get_db)):
         )
 
     return {"origem": origem}
+
+
+@ordens_separacao_router.get(
+    "/imprimir_etiquetas/{ordem_separacao}",
+    summary="Gera e imprime as etiquetas da ordem de separação",
+)
+def imprimir_etiquetas(
+    ordem_separacao: str,
+    x_cliente_token: str = Header(alias="X-Cliente-Token"),
+    db: Session = Depends(get_db),
+):
+    """
+    Gera o ZPL e envia para a impressora em rede, com base nos dados da ordem de separação.
+    """
+    if not valida_chave_coletor(x_cliente_token):
+        log_httpexception_raise(
+            status_code=status.HTTP_403_FORBIDDEN,
+            mensagem="Chave de cliente inválida!",
+            nivel_log=NivelLog.WARNING,
+        )
+
+    ordens = OrdensSeparacao(db=db)
+    return ordens.imprimir_etiquetas(ordem_separacao)
+

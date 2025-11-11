@@ -558,42 +558,21 @@ async def grava_separacao(
 
         if pendencia_resp.status_code == status.HTTP_200_OK:
             pendencias_data = pendencia_resp.json()
-            pendencias = pendencias_data.get("pendencias", 0)
+            pendencias = pendencias_data.get("pendencias")
+
+            if pendencias is None:
+                print(f"⚠️ Resposta sem campo 'pendencias': {pendencias_data}")
+                pendencias = 1  # assume que ainda há pendências até o backend confirmar
+
             print(f"✅ Pendências encontradas: {pendencias}")
 
-            if pendencias == 0:
+            if int(pendencias) == 0:
                 # Nenhuma pendência → verificar origem
-                origem_resp = prepara_response.exec_request(
-                    url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/origem_separacao/{ordem_separacao}",
-                    metodo="get",
-                    headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
-                )
-
-                origem = None
-                if origem_resp.status_code == status.HTTP_200_OK:
-                    origem = origem_resp.json().get("origem")
-
-                mostrar_botao_encerrar = origem in ["5", "6"]
-
-                mensagem = (
-                    "Todos os itens foram separados."
-                    if mostrar_botao_encerrar
-                    else f"Ordem de separação finalizada. Origem {origem} não permite encerramento automático."
-                )
-
-                return prepara_response.retorna_response(
-                    templates.TemplateResponse(
-                        "finaliza_ordem_separacao.html",
-                        {
-                            "request": request,
-                            "ordem_separacao": ordem_separacao,
-                            "mensagem": mensagem,
-                            "usuario_nome": prepara_response.nome_usuario,
-                            "mostrar_botao_encerrar": mostrar_botao_encerrar,
-                        },
-                    )
-                )
-
+                ...
+        else:
+            # Qualquer resposta diferente de 200 é tratada como “ainda há itens”
+            print(f"⚠️ Erro verificando pendências (status {pendencia_resp.status_code}). Continua fluxo normal.")
+            pendencias = 1
         # 5️⃣ Ainda há itens → segue fluxo normal de contagem
         print("➡️ Ainda há pendências. Continuando fluxo normal.")
 
@@ -1017,8 +996,9 @@ async def encerrar_separacao(request: Request, ordem_separacao: str):
     )
 
     if response.status_code == status.HTTP_200_OK:
+        # Redireciona para a tela de impressão de etiquetas
         return RedirectResponse(
-            url=f"/ordens/finalizada/{ordem_separacao}",
+            url=f"/impressao_etiquetas/{ordem_separacao}",
             status_code=status.HTTP_302_FOUND,
         )
     else:
@@ -1032,6 +1012,7 @@ async def encerrar_separacao(request: Request, ordem_separacao: str):
                 },
             )
         )
+
     
 @app.get("/verifica_pendencias", include_in_schema=False)
 async def verifica_pendencias(
@@ -1068,6 +1049,23 @@ async def verifica_pendencias(
             detail=f"Falha ao verificar pendências: {e}",
         )
 
+import socket
+@app.get("/impressao_etiquetas/{ordem_separacao}", include_in_schema=False)
+async def impressao_etiquetas(request: Request, ordem_separacao: str):
+    prepara_response = PreparaResponse(request=request)
+    if not prepara_response.valida_tokens():
+        return await logout(mensagem="Token de acesso inválido / expirado!")
+
+    return prepara_response.retorna_response(
+        templates.TemplateResponse(
+            "impressao_etiquetas.html",
+            {
+                "request": request,
+                "ordem_separacao": ordem_separacao,
+                "usuario": prepara_response.usuario_codigo,  # pra gerar o campo no ZPL
+            },
+        )
+    )
 
     
 if __name__ == "__main__":

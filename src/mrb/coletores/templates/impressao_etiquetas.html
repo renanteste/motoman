@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Impressão de Etiquetas - OS {{ ordem_separacao }}</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 1rem;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            max-width: 600px;
+            margin: 3rem auto;
+            text-align: center;
+        }
+        h2 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+            margin: 0.5rem;
+        }
+        .btn-imprimir {
+            background: #007bff;
+            color: white;
+        }
+        .btn-imprimir:hover {
+            background: #0056b3;
+        }
+        .btn-voltar {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-voltar:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Impressão de Etiquetas</h2>
+        <p>Ordem de Separação: <strong>{{ ordem_separacao }}</strong></p>
+
+        <div>
+            <button class="btn btn-imprimir" onclick="imprimirEtiquetas('{{ ordem_separacao }}')">
+                🖨️ Imprimir Etiquetas
+            </button>
+            <a href="/ordens" class="btn btn-voltar">← Voltar às Ordens</a>
+        </div>
+    </div>
+
+    <script>
+        async function imprimirEtiquetas(ordem) {
+            const confirmacao = confirm("Deseja imprimir as etiquetas da ordem " + ordem + "?");
+            if (!confirmacao) return;
+
+            try {
+                const response = await fetch("/imprimir_etiquetas/" + encodeURIComponent(ordem));
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(result.detail || "Impressão enviada com sucesso!");
+                } else {
+                    alert("Erro ao imprimir: " + (result.detail || "Desconhecido"));
+                }
+            } catch (e) {
+                alert("Falha ao comunicar com o servidor: " + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
