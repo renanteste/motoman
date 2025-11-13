@@ -99,7 +99,14 @@
                     ✅ Encerrar Separação
                 </button>
             {% endif %}
+
+            {% if mostrar_botao_imprimir %}
+                <a href="/impressao_etiquetas/{{ ordem_separacao }}" class="btn btn-encerrar">
+                    🖨️ Imprimir Etiquetas
+                </a>
+            {% endif %}
         </div>
+
     </div>
 
     <script>

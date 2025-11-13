@@ -1128,7 +1128,7 @@ class OrdensSeparacao:
 
         return {"detail": f"✅ Ordem {ordem_separacao} encerrada com sucesso e atualizada."}
     
-    def imprimir_etiquetas(self, ordem_separacao: str) -> dict:
+    def imprimir_etiquetas(self, ordem_separacao: str, usuario: str = "000000") -> dict:
         """
         Gera as etiquetas (ZPL) da OS e envia para a impressora Zebra em rede.
         Compatível com a estrutura de dados do Protheus (campos CHAR/FLOAT).
@@ -1136,7 +1136,7 @@ class OrdensSeparacao:
         try:
             # 1️⃣ Buscar o número da SA (CB8_XNUMSA)
             cb8_stmt = text("""
-                SELECT FIRST 1 CB8_XNUMSA
+                SELECT TOP 1 CB8_XNUMSA
                 FROM CB8010
                 WHERE D_E_L_E_T_ = ' '
                 AND CB8_FILIAL = '01'
@@ -1189,17 +1189,16 @@ class OrdensSeparacao:
                     detail=f"Nenhum registro encontrado para impressão da OS {ordem_separacao}."
                 )
 
-            # 3️⃣ Montar etiquetas em ZPL (com segurança para campos Protheus)
+            # 3️⃣ Montar etiquetas em ZPL
             etiquetas = []
             pagina = 1
             datahora = datetime.now().strftime("%Y%m%d%H%M%S")
-            usuario = "000265"  # TODO: puxar do token autenticado
 
             proj_ant, prod_ant, agrup_ant = None, None, None
             etiqueta = ""
 
             for row in resultados:
-                # Tratamento robusto contra espaços e tipos errados
+                # Garantir compatibilidade com Protheus
                 cp_xprojet = (row.CP_XPROJET or "").strip()
                 cp_xprod = (row.CP_XPROD or "").strip()
                 afa_xagrup = (row.AFA_XAGRUP or "").strip()
@@ -1212,43 +1211,40 @@ class OrdensSeparacao:
                 except:
                     cp_quant = "0,00"
 
-                # Se mudou projeto/produto → nova etiqueta
+                # ➤ Se mudou projeto/produto → nova etiqueta
                 if (proj_ant, prod_ant) != (cp_xprojet, cp_xprod):
                     if etiqueta:
-                        etiqueta += (
-                            f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-ETQ{pagina}==>^FS\n^XZ\n"
-                        )
+                        # finaliza etiqueta anterior com rodapé
+                        etiqueta += f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-ETQ{pagina}==>^FS\n^XZ\n"
                         etiquetas.append(etiqueta)
                         pagina += 1
 
+                    # nova etiqueta
                     etiqueta = "^XA\n^PR2\n^PQ1\n^LL252\n"
                     etiqueta += f"^FO6,60^A0N,154,168^FR^FH_^FDOS {ordem_separacao}^FS\n"
                     etiqueta += f"^FO6,204^A0N,032,035^FR^FH_^FD{cp_xprojet}  {cp_xprod}^FS\n"
                     proj_ant, prod_ant = cp_xprojet, cp_xprod
-                    agrup_ant = None
+                    agrup_ant = None  # reseta agrupador
 
-                # Se mudou agrupador → imprime linha AGR
-                if afa_xagrup and afa_xagrup != agrup_ant:
-                    etiqueta += f"^FO6,264^A0N,032,035^FR^FH_^FDAGR {afa_xagrup}^FS\n"
+                # ➤ Se agrupador mudou
+                if afa_xagrup != agrup_ant:
+                    if afa_xagrup:
+                        etiqueta += f"^FO6,264^A0N,032,035^FR^FH_^FDAGR {afa_xagrup}^FS\n"
                     etiqueta += f"^FO6,324^A0N,032,035^FR^FH_^FDSA {cp_num}^FS\n"
                     agrup_ant = afa_xagrup
 
-                # Linha de produto
-                etiqueta += (
-                    f"^FO6,384^A0N,025,025^FR^FH_^FD{cp_produto:<20}{cp_quant} {cp_descri}^FS\n"
-                )
+                # ➤ Linha de item (produto)
+                etiqueta += f"^FO6,384^A0N,025,025^FR^FH_^FD{cp_produto:<20}{cp_quant} {cp_descri}^FS\n"
 
-            # Finaliza a última etiqueta
+            # ➤ Finaliza a última etiqueta
             if etiqueta:
-                etiqueta += (
-                    f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-ETQ{pagina}<FIM>^FS\n^XZ\n"
-                )
+                etiqueta += f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-ETQ{pagina}<FIM>^FS\n^XZ\n"
                 etiquetas.append(etiqueta)
 
             zpl_final = "\n".join(etiquetas)
 
-            # 4️⃣ Enviar para impressora Zebra em rede (porta 9100)
-            impressora_ip = "192.168.0.50"  # ← ajustar conforme a rede
+            # 4️⃣ Enviar ZPL à impressora Zebra
+            impressora_ip = "192.168.0.50"  # ajustar conforme rede
             impressora_porta = 9100
 
             try:
@@ -1261,10 +1257,11 @@ class OrdensSeparacao:
                     detail=f"Falha ao enviar etiqueta para impressora: {e}",
                 )
 
-            # 5️⃣ Retorno final
+            # 5️⃣ Retorno
             return {
                 "detail": f"✅ {len(etiquetas)} etiqueta(s) da OS {ordem_separacao} geradas e enviadas à impressora.",
                 "ordem": ordem_separacao,
+                "usuario": usuario,
             }
 
         except SQLAlchemyError as e:
@@ -1276,6 +1273,7 @@ class OrdensSeparacao:
                 nivel_log=NivelLog.ERROR,
                 excecao=e,
             )
+
 
 def recupera_posicoes(
     db: Session, codigo_produto: str, almoxarifado: str, posicao_atual: str

@@ -159,6 +159,7 @@
                     <span style="color:#007bff;">(Projeto)</span>
                     {% else %}
                     <span style="color:#28a745;">(Estoque)</span>
+                    
                     {% endif %}
                 </div>
                 </div>
@@ -197,7 +198,7 @@
         <div class="botoes">
             <a href="/ordens" class="btn btn-voltar">← Voltar</a>
 
-            {% if itens_pendentes == 0 %}
+            {% if itens_pendentes == 0 and origem == "5"  or itens_pendentes == 0 and origem == "6" %}
                 <!-- ✅ Quando todos os itens foram separados -->
                 <button onclick="encerrarSeparacao('{{ ordem_separacao }}')" class="btn btn-continuar" style="background:#28a745;">
                     ✅ Encerrar
@@ -243,9 +244,9 @@
             
         }
         function encerrarSeparacao(ordem) {
-            if (confirm("Deseja encerrar a separação da ordem " + ordem + "?")) {
+            //if (confirm("Deseja encerrar a separação da ordem " + ordem + "?")) {
                 window.location.href = "/encerrar_separacao/" + encodeURIComponent(ordem);
-            }
+            //}
         }
         </script>
     <script>

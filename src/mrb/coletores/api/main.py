@@ -9,7 +9,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from urllib.parse import quote
 import requests
 import uvicorn
-
 from src.mrb.common.lib.log_httpexception_raise import NivelLog, log_httpexception_raise
 from src.mrb.common.lib.handlers_excecoes import registrar_handlers_excecoes
 from src.mrb.common.lib.log_middleware import log_requests
@@ -868,6 +867,16 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
         if response.status_code == status.HTTP_200_OK:
             itens = response.json()
             
+            # 🔍 Captura a origem da separação (pega do primeiro item)
+            origem = None
+            if itens and isinstance(itens, list):
+                origem = itens[0].get("origem") or itens[0].get("cb7_origem") or ""
+            else:
+                origem = ""
+
+            # Garante que é string para o Jinja
+            origem = str(origem).strip()
+            
             # Processa os dados para a exibição na tela
             itens_processados = []
             itens_separados = 0
@@ -938,6 +947,7 @@ async def tela_itens_ordem_separacao(request: Request, ordem_separacao: str = Pa
                         "itens_separados": itens_separados,
                         "percentual": percentual, 
                         "usuario_nome": prepara_response.nome_usuario,
+                        "origem": origem,
                     },
                 )
             )
@@ -996,11 +1006,18 @@ async def encerrar_separacao(request: Request, ordem_separacao: str):
     )
 
     if response.status_code == status.HTTP_200_OK:
-        # Redireciona para a tela de impressão de etiquetas
-        return RedirectResponse(
-            url=f"/impressao_etiquetas/{ordem_separacao}",
-            status_code=status.HTTP_302_FOUND,
+        # Renderiza a página com o botão de imprimir, sem redirecionar automaticamente
+        return templates.TemplateResponse(
+            "finaliza_ordem_separacao.html",
+            {
+                "request": request,
+                "ordem_separacao": ordem_separacao,
+                "mensagem": "✅ Separação encerrada com sucesso!",
+                "mostrar_botao_encerrar": False,  # esconde o botão de encerrar
+                "mostrar_botao_imprimir": True,   # exibe o botão de imprimir
+            },
         )
+
     else:
         return prepara_response.retorna_response(
             templates.TemplateResponse(
@@ -1012,6 +1029,7 @@ async def encerrar_separacao(request: Request, ordem_separacao: str):
                 },
             )
         )
+
 
     
 @app.get("/verifica_pendencias", include_in_schema=False)
@@ -1049,23 +1067,36 @@ async def verifica_pendencias(
             detail=f"Falha ao verificar pendências: {e}",
         )
 
-import socket
 @app.get("/impressao_etiquetas/{ordem_separacao}", include_in_schema=False)
 async def impressao_etiquetas(request: Request, ordem_separacao: str):
     prepara_response = PreparaResponse(request=request)
-    if not prepara_response.valida_tokens():
-        return await logout(mensagem="Token de acesso inválido / expirado!")
 
-    return prepara_response.retorna_response(
-        templates.TemplateResponse(
-            "impressao_etiquetas.html",
-            {
-                "request": request,
-                "ordem_separacao": ordem_separacao,
-                "usuario": prepara_response.usuario_codigo,  # pra gerar o campo no ZPL
-            },
+    # 🔐 Valida o token de sessão interna (não JWT)
+    if not prepara_response.valida_tokens():
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Token inválido ou expirado"},
         )
+
+    # ✅ Obtém o "código" ou nome do usuário da sessão
+    usuario_codigo = getattr(prepara_response, "nome_usuario", "000000")
+
+    # 🔁 Chama o backend que gera e imprime as etiquetas
+    response = prepara_response.exec_request(
+        url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/imprimir_etiquetas/{ordem_separacao}",
+        metodo="get",
+        headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
+        dados={"usuario": usuario_codigo},
     )
+
+    # Retorna o resultado direto do backend
+    return JSONResponse(
+        status_code=response.status_code,
+        content=response.json(),
+    )
+
+
+
 
     
 if __name__ == "__main__":
