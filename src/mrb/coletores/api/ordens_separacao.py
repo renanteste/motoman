@@ -1244,7 +1244,7 @@ class OrdensSeparacao:
             zpl_final = "\n".join(etiquetas)
 
             # 4️⃣ Enviar ZPL à impressora Zebra
-            impressora_ip = "192.168.0.50"  # ajustar conforme rede
+            impressora_ip = "172.22.8.2"  # ajustar conforme rede
             impressora_porta = 9100
 
             try:
