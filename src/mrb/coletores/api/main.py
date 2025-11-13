@@ -1066,34 +1066,64 @@ async def verifica_pendencias(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Falha ao verificar pendências: {e}",
         )
+    
 
 @app.get("/impressao_etiquetas/{ordem_separacao}", include_in_schema=False)
-async def impressao_etiquetas(request: Request, ordem_separacao: str):
+async def impressao_etiquetas(request: Request, ordem_separacao: str, visualizar: bool = True, pagina: int = 1):
     prepara_response = PreparaResponse(request=request)
 
-    # 🔐 Valida o token de sessão interna (não JWT)
+    # 🔐 Valida token
     if not prepara_response.valida_tokens():
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={"detail": "Token inválido ou expirado"},
         )
 
-    # ✅ Obtém o "código" ou nome do usuário da sessão
     usuario_codigo = getattr(prepara_response, "nome_usuario", "000000")
 
-    # 🔁 Chama o backend que gera e imprime as etiquetas
-    response = prepara_response.exec_request(
-        url=f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/imprimir_etiquetas/{ordem_separacao}",
-        metodo="get",
-        headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
-        dados={"usuario": usuario_codigo},
+    # ✅ Constrói a URL com parâmetros GET na própria string
+    url_backend = (
+        f"http://localhost:{ApiConfiguration.Coletores.PORT_BACKEND}/imprimir_etiquetas/{ordem_separacao}"
+        f"?visualizar={str(visualizar).lower()}&enviar_para_impressora=false&usuario={usuario_codigo}"
     )
 
-    # Retorna o resultado direto do backend
-    return JSONResponse(
-        status_code=response.status_code,
-        content=response.json(),
+    response = prepara_response.exec_request(
+        url=url_backend,
+        metodo="get",
+        headers={"X-Cliente-Token": Environment.CHAVE_COLETOR},
     )
+
+
+    if response.status_code == 200:
+        dados = response.json()
+        paginas_itens = dados.get("paginas_itens", [])
+        total_paginas = len(paginas_itens)
+
+        # Se número de página inválido, corrige
+        if pagina < 1: pagina = 1
+        if pagina > total_paginas: pagina = total_paginas
+
+        return templates.TemplateResponse(
+            "impressao_etiquetas.html",
+            {
+                "request": request,
+                "ordem": ordem_separacao,
+                "pagina": pagina,
+                "total_paginas": total_paginas,
+                "itens": paginas_itens[pagina - 1] if paginas_itens else [],
+                "mensagem": dados.get("detail", ""),
+            },
+        )
+    else:
+        return templates.TemplateResponse(
+            "ordens.html",
+            {
+                "request": request,
+                "erro": f"Erro ao gerar etiquetas: {response.json().get('detail', response.text)}",
+                "usuario_nome": prepara_response.nome_usuario,
+            },
+        )
+
 
 
 

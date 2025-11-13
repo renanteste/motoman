@@ -3,74 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Impressão de Etiquetas - OS {{ ordem_separacao }}</title>
+    <title>Impressão de Etiquetas - OS {{ ordem }}</title>
     <style>
         body {
-            font-family: sans-serif;
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
             margin: 0;
-            padding: 1rem;
-            background-color: #f4f4f4;
+            padding: 2rem;
         }
         .container {
-            background: white;
-            border-radius: 6px;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
             padding: 2rem;
-            max-width: 600px;
-            margin: 3rem auto;
-            text-align: center;
+            max-width: 700px;
+            margin: auto;
         }
         h2 {
-            margin-bottom: 1rem;
             color: #333;
+            margin-bottom: 1rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 0.6rem;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
         }
         .btn {
-            padding: 12px 24px;
+            display: inline-block;
+            margin: 0.5rem;
+            padding: 10px 20px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 1em;
-            transition: background 0.3s ease;
-            margin: 0.5rem;
+            font-size: 1rem;
         }
         .btn-imprimir {
-            background: #007bff;
+            background-color: #007bff;
             color: white;
         }
         .btn-imprimir:hover {
-            background: #0056b3;
+            background-color: #0056b3;
         }
         .btn-voltar {
-            background: #6c757d;
+            background-color: #6c757d;
             color: white;
         }
         .btn-voltar:hover {
-            background: #5a6268;
+            background-color: #5a6268;
+        }
+        .btn-nav {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .btn-nav:hover {
+            background-color: #138496;
+        }
+        .info {
+            color: #555;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>Impressão de Etiquetas</h2>
-        <p>Ordem de Separação: <strong>{{ ordem_separacao }}</strong></p>
+        <h2>Prévia da Etiqueta - OS {{ ordem }}</h2>
+        <p class="info">Página {{ pagina }} de {{ total_paginas }}</p>
+
+        {% if itens %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Produto</th>
+                    <th>Descrição</th>
+                    <th>Quantidade</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in itens %}
+                <tr>
+                    <td>{{ item.produto }}</td>
+                    <td>{{ item.descricao }}</td>
+                    <td>{{ item.quantidade }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>Nenhum item encontrado nesta página.</p>
+        {% endif %}
 
         <div>
-            <button class="btn btn-imprimir" onclick="imprimirEtiquetas('{{ ordem_separacao }}')">
-                🖨️ Imprimir Etiquetas
-            </button>
-            <a href="/ordens" class="btn btn-voltar">← Voltar às Ordens</a>
+            {% if pagina > 1 %}
+            <a class="btn btn-nav" href="/impressao_etiquetas/{{ ordem }}?pagina={{ pagina - 1 }}">← Anterior</a>
+            {% endif %}
+            {% if pagina < total_paginas %}
+            <a class="btn btn-nav" href="/impressao_etiquetas/{{ ordem }}?pagina={{ pagina + 1 }}">Próxima →</a>
+            {% endif %}
         </div>
+
+        <div>
+            <button class="btn btn-imprimir" onclick="imprimirEtiqueta('{{ ordem }}')">🖨️ Imprimir esta etiqueta</button>
+            <a href="/ordens" class="btn btn-voltar">← Voltar</a>
+        </div>
+
+        <p>{{ mensagem }}</p>
     </div>
 
     <script>
-        async function imprimirEtiquetas(ordem) {
-            const confirmacao = confirm("Deseja imprimir as etiquetas da ordem " + ordem + "?");
-            if (!confirmacao) return;
-
+        async function imprimirEtiqueta(ordem) {
+            const confirma = confirm("Deseja imprimir esta etiqueta da OS " + ordem + "?");
+            if (!confirma) return;
             try {
-                const response = await fetch("/imprimir_etiquetas/" + encodeURIComponent(ordem));
+                const response = await fetch(`/imprimir_etiquetas/${ordem}`);
                 const result = await response.json();
-
                 if (response.ok) {
                     alert(result.detail || "Impressão enviada com sucesso!");
                 } else {

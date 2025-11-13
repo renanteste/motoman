@@ -1128,13 +1128,20 @@ class OrdensSeparacao:
 
         return {"detail": f"✅ Ordem {ordem_separacao} encerrada com sucesso e atualizada."}
     
-    def imprimir_etiquetas(self, ordem_separacao: str, usuario: str = "000000") -> dict:
+    def imprimir_etiquetas(
+        self,
+        ordem_separacao: str,
+        usuario: str = "000000",
+        enviar_para_impressora: bool = True,
+        visualizar: bool = False
+    ) -> dict:
         """
-        Gera as etiquetas (ZPL) da OS e envia para a impressora Zebra em rede.
-        Compatível com a estrutura de dados do Protheus (campos CHAR/FLOAT).
+        Gera as etiquetas (em páginas de até 14 itens) e opcionalmente envia para a impressora.
+        Caso `visualizar=True`, retorna o conteúdo ZPL e a lista de itens de cada página,
+        sem enviar à impressora.
         """
         try:
-            # 1️⃣ Buscar o número da SA (CB8_XNUMSA)
+            # 1️⃣ Buscar número da SA (CB8_XNUMSA)
             cb8_stmt = text("""
                 SELECT TOP 1 CB8_XNUMSA
                 FROM CB8010
@@ -1151,7 +1158,7 @@ class OrdensSeparacao:
 
             numero_sa = cb8_result[0].strip()
 
-            # 2️⃣ Executar query principal (SCP010 + AFA010)
+            # 2️⃣ Buscar todos os itens da OS
             query = text("""
                 SELECT
                     CP_XORDSEP,
@@ -1181,98 +1188,106 @@ class OrdensSeparacao:
                     AFA.AFA_XAGRUP,
                     SCP.CP_PRODUTO
             """)
-
             resultados = self.db.execute(query, {"ordem": ordem_separacao, "num_sa": numero_sa}).fetchall()
             if not resultados:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Nenhum registro encontrado para impressão da OS {ordem_separacao}."
+                raise HTTPException(status_code=404, detail=f"Nenhum item encontrado para a OS {ordem_separacao}.")
+
+            # 3️⃣ Montar etiquetas com limite de 14 itens por página
+            MAX_ITENS_POR_ETIQUETA = 14
+            etiquetas, paginas_itens = [], []
+            pagina, y_base, y_step = 1, 264, 40
+            datahora = datetime.now().strftime("%Y%m%d%H%M%S")
+            y, itens_na_pagina = y_base, 0
+
+            def nova_etiqueta():
+                return (
+                    "^XA\n^PR2\n^PQ1\n^LL252\n"
+                    f"^FO6,60^A0N,154,168^FR^FH_^FDOS {ordem_separacao}^FS\n"
+                    f"^FO6,204^A0N,032,035^FR^FH_^FD{(resultados[0].CP_XPROJET or '').strip()}^FS\n"
                 )
 
-            # 3️⃣ Montar etiquetas em ZPL
-            etiquetas = []
-            pagina = 1
-            datahora = datetime.now().strftime("%Y%m%d%H%M%S")
+            etiqueta = nova_etiqueta()
+            pagina_atual_itens = []
 
-            proj_ant, prod_ant, agrup_ant = None, None, None
-            etiqueta = ""
-
-            for row in resultados:
-                # Garantir compatibilidade com Protheus
-                cp_xprojet = (row.CP_XPROJET or "").strip()
-                cp_xprod = (row.CP_XPROD or "").strip()
-                afa_xagrup = (row.AFA_XAGRUP or "").strip()
-                cp_num = (row.CP_NUM or "").strip()
+            for i, row in enumerate(resultados, start=1):
                 cp_produto = (row.CP_PRODUTO or "").strip()
                 cp_descri = (row.CP_DESCRI or "").strip()
-
                 try:
                     cp_quant = f"{Decimal(str(row.CP_QUANT or 0)):.2f}".replace(".", ",")
                 except:
                     cp_quant = "0,00"
 
-                # ➤ Se mudou projeto/produto → nova etiqueta
-                if (proj_ant, prod_ant) != (cp_xprojet, cp_xprod):
-                    if etiqueta:
-                        # finaliza etiqueta anterior com rodapé
-                        etiqueta += f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-ETQ{pagina}==>^FS\n^XZ\n"
-                        etiquetas.append(etiqueta)
-                        pagina += 1
+                etiqueta += f"^FO6,{y}^A0N,025,025^FR^FH_^FD{cp_produto:<20}{cp_quant} {cp_descri}^FS\n"
+                pagina_atual_itens.append({
+                    "produto": cp_produto,
+                    "descricao": cp_descri,
+                    "quantidade": cp_quant
+                })
 
-                    # nova etiqueta
-                    etiqueta = "^XA\n^PR2\n^PQ1\n^LL252\n"
-                    etiqueta += f"^FO6,60^A0N,154,168^FR^FH_^FDOS {ordem_separacao}^FS\n"
-                    etiqueta += f"^FO6,204^A0N,032,035^FR^FH_^FD{cp_xprojet}  {cp_xprod}^FS\n"
-                    proj_ant, prod_ant = cp_xprojet, cp_xprod
-                    agrup_ant = None  # reseta agrupador
+                y += y_step
+                itens_na_pagina += 1
 
-                # ➤ Se agrupador mudou
-                if afa_xagrup != agrup_ant:
-                    if afa_xagrup:
-                        etiqueta += f"^FO6,264^A0N,032,035^FR^FH_^FDAGR {afa_xagrup}^FS\n"
-                    etiqueta += f"^FO6,324^A0N,032,035^FR^FH_^FDSA {cp_num}^FS\n"
-                    agrup_ant = afa_xagrup
+                # Quando atingir o limite → fecha a etiqueta e abre nova
+                if itens_na_pagina >= MAX_ITENS_POR_ETIQUETA and i < len(resultados):
+                    etiqueta += f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-PAG{pagina}<FIM>^FS\n^XZ\n"
+                    etiquetas.append(etiqueta)
+                    paginas_itens.append(pagina_atual_itens)
 
-                # ➤ Linha de item (produto)
-                etiqueta += f"^FO6,384^A0N,025,025^FR^FH_^FD{cp_produto:<20}{cp_quant} {cp_descri}^FS\n"
+                    # Reinicia para nova etiqueta
+                    pagina += 1
+                    etiqueta = nova_etiqueta()
+                    pagina_atual_itens = []
+                    y = y_base
+                    itens_na_pagina = 0
 
-            # ➤ Finaliza a última etiqueta
+            # Fecha a última
             if etiqueta:
-                etiqueta += f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-ETQ{pagina}<FIM>^FS\n^XZ\n"
+                etiqueta += f"^FO6,996^A0N,023,023^FR^FH_^FD{datahora}-{usuario}-PAG{pagina}<FIM>^FS\n^XZ\n"
                 etiquetas.append(etiqueta)
+                paginas_itens.append(pagina_atual_itens)
 
             zpl_final = "\n".join(etiquetas)
 
-            # 4️⃣ Enviar ZPL à impressora Zebra
-            impressora_ip = "172.22.8.2"  # ajustar conforme rede
-            impressora_porta = 9100
+            # 4️⃣ Envio (ou só visualização)
+            paginas_itens = []
+            pagina_atual = []
+            for i, row in enumerate(resultados, start=1):
+                item = {
+                    "produto": (row.CP_PRODUTO or "").strip(),
+                    "descricao": (row.CP_DESCRI or "").strip(),
+                    "quantidade": f"{Decimal(str(row.CP_QUANT or 0)):.2f}".replace(".", ","),
+                }
+                pagina_atual.append(item)
 
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.connect((impressora_ip, impressora_porta))
-                    s.sendall(zpl_final.encode("utf-8"))
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Falha ao enviar etiqueta para impressora: {e}",
-                )
+                if len(pagina_atual) >= MAX_ITENS_POR_ETIQUETA or i == len(resultados):
+                    paginas_itens.append(pagina_atual)
+                    pagina_atual = []
 
-            # 5️⃣ Retorno
+            zpl_final = "\n".join(etiquetas)
+
+            # 5️⃣ Enviar ZPL à impressora Zebra (somente se for pra imprimir)
+            if enviar_para_impressora:
+                impressora_ip = "172.22.8.2"
+                impressora_porta = 9100
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.connect((impressora_ip, impressora_porta))
+                        s.sendall(zpl_final.encode("utf-8"))
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Falha ao enviar etiqueta: {e}")
+
+            # ✅ Novo retorno: inclui tudo que o frontend precisa
             return {
-                "detail": f"✅ {len(etiquetas)} etiqueta(s) da OS {ordem_separacao} geradas e enviadas à impressora.",
+                "detail": f"✅ {len(etiquetas)} etiqueta(s) geradas para OS {ordem_separacao} (máx {MAX_ITENS_POR_ETIQUETA} itens por etiqueta).",
                 "ordem": ordem_separacao,
-                "usuario": usuario,
+                "total_paginas": len(etiquetas),
+                "paginas_itens": paginas_itens,   # ← agora o front consegue renderizar a prévia
+                "zpl": zpl_final,                 # ← útil se quiser mostrar o código ZPL
             }
 
         except SQLAlchemyError as e:
             self.db.rollback()
-            log_httpexception_raise(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                mensagem="Erro ao gerar etiquetas da OS.",
-                exc_info=True,
-                nivel_log=NivelLog.ERROR,
-                excecao=e,
-            )
+            raise HTTPException(status_code=500, detail=f"Erro no banco de dados: {str(e)}")
 
 
 def recupera_posicoes(
